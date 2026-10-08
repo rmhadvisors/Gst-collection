@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CA Office Automation — Space Homes</title>
+  <meta name="description" content="Automate Collection Sheets and GST Calculation Workbooks from Tally receipts and Agreement PDFs for real estate builders.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="<%= basePath %>/css/style.css">
+  <style>
+    /* ── Tabs ── */
+    .tab-bar {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid #e2e8f0;
+      margin-bottom: 24px;
+    }
+    .tab-btn {
+      padding: 10px 22px;
+      border: none;
+      background: none;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      color: #64748b;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      transition: color .15s, border-color .15s;
+    }
+    .tab-btn.active { color: #1e293b; border-bottom-color: #2563eb; }
+    .tab-btn:hover:not(.active) { color: #334155; }
+
+    /* ── Action buttons ── */
+    .action-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    @media (max-width: 600px) { .action-grid { grid-template-columns: 1fr; } }
+
+    .btn-action {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      padding: 15px 20px; border: none; border-radius: 12px;
+      font-family: inherit; font-size: 14px; font-weight: 600;
+      cursor: pointer;
+      transition: transform .15s, box-shadow .15s, opacity .15s;
+    }
+    .btn-action:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+    .btn-action:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-collection { background: linear-gradient(135deg,#2563eb,#1d4ed8); color:#fff; }
+    .btn-gst        { background: linear-gradient(135deg,#059669,#047857); color:#fff; }
+    .btn-update-col { background: linear-gradient(135deg,#7c3aed,#6d28d9); color:#fff; }
+    .btn-update-gst { background: linear-gradient(135deg,#b45309,#92400e); color:#fff; }
+
+    .btn-action .spinner {
+      width: 17px; height: 17px; display: none;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .btn-action.loading .spinner { display: block; }
+    .btn-action.loading .btn-label { display: none; }
+
+    /* ── Drop zone ── */
+    .drop-zone {
+      border: 2px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      cursor: default;
+      transition: border-color .2s, background .2s;
+      position: relative;
+    }
+    .drop-zone.drag-over { border-color: #2563eb; background: #eff6ff; }
+    .drop-zone-content { pointer-events: none; }
+    .drop-zone-content p { margin: 6px 0 0; color: #64748b; font-size: 14px; }
+    .drop-zone-content .file-hint { font-size: 12px; color: #94a3b8; }
+    .btn-browse {
+      pointer-events: all;
+      margin-top: 10px;
+      padding: 7px 18px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fff;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      color: #475569;
+      transition: border-color .15s, color .15s;
+    }
+    .btn-browse:hover { border-color: #2563eb; color: #2563eb; }
+
+    /* ── Misc ── */
+    .tag { display: inline-flex; align-items: center; gap: 5px;
+      padding: 2px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 600; }
+    .tag-required { background: #fef2f2; color: #b91c1c; }
+    .tag-optional  { background: #f0fdf4; color: #15803d; }
+    .tag-update    { background: #faf5ff; color: #7c3aed; }
+
+    .divider {
+      display: flex; align-items: center; gap: 12px;
+      color: #64748b; font-size: 13px; margin: 18px 0 4px;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px; background: #e2e8f0;
+    }
+
+    .update-note {
+      background: #faf5ff; border: 1px solid #e9d5ff;
+      border-radius: 10px; padding: 12px 16px; margin-top: 16px;
+      font-size: 13px; color: #6b21a8;
+    }
+    .update-note strong { display: block; margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">
+        <svg width="42" height="42" viewBox="0 0 42 42" fill="none">
+          <rect width="42" height="42" rx="11" fill="url(#lg)"/>
+          <defs><linearGradient id="lg" x1="0" y1="0" x2="42" y2="42" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#2563eb"/><stop offset="1" stop-color="#059669"/>
+          </linearGradient></defs>
+          <path d="M13 30V12h5v18h-5zm11 0V19h5v11h-5z" fill="#fff"/>
+        </svg>
+        <div>
+          <h1>CA Office Automation</h1>
+          <p class="subtitle">Space Homes &mdash; Yashwant County, Wing B</p>
+        </div>
+      </div>
+      <!-- <div class="header-actions">
+        <a href="/dashboard" style="color:var(--text-muted);text-decoration:none;font-size:.85rem;">&larr; Back to Dashboard</a>
+      </div> -->
+    </header>
+
+    <% if (typeof error !== 'undefined' && error) { %>
+      <div class="alert error"><strong>Error:</strong> <%= error %></div>
+    <% } %>
+
+    <div class="card">
+      <!-- Tabs: Generate vs Update -->
+      <div class="tab-bar">
+        <button class="tab-btn active" id="tabGenerate" onclick="switchTab('generate')">Generate New</button>
+        <button class="tab-btn" id="tabUpdate" onclick="switchTab('update')">Update Existing</button>
+      </div>
+
+      <!-- ══════════════ GENERATE PANEL ══════════════ -->
+      <div id="panelGenerate">
+        <h2 style="margin-top:0">Upload Files</h2>
+        <p class="help-text">Upload Tally receipt workbook and Agreement PDFs. Then choose which document to generate.</p>
+
+        <div class="form-grid">
+          <!-- Tally -->
+          <div class="form-group">
+            <label>
+              Tally Receipts (.xlsx)
+              <span class="tag tag-required">Required</span>
+            </label>
+            <div class="drop-zone" id="tallyZone">
+              <div class="drop-zone-content">
+                <svg width="32" height="32" viewBox="0 0 36 36" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M18 6v18m0-18l-6 6m6-6l6 6"/><rect x="4" y="24" width="28" height="8" rx="2"/></svg>
+                <p>Drag &amp; drop Tally files here</p>
+                <p class="file-hint">.xlsx / .xls &mdash; max 100 MB</p>
+                <button type="button" class="btn-browse" id="browseTally">Browse files</button>
+              </div>
+            </div>
+            <div class="file-list" id="tallyList"></div>
+          </div>
+
+          <!-- Agreements -->
+          <div class="form-group">
+            <label>
+              Agreement PDF(s)
+              <span class="tag tag-optional">Optional for GST Workbook</span>
+            </label>
+            <div class="drop-zone" id="agreementsZone">
+              <div class="drop-zone-content">
+                <svg width="32" height="32" viewBox="0 0 36 36" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M18 6v18m0-18l-6 6m6-6l6 6"/><rect x="4" y="24" width="28" height="8" rx="2"/></svg>
+                <p>Drag &amp; drop Agreement PDFs here</p>
+                <p class="file-hint">Scanned PDFs (OCR processed)</p>
+                <button type="button" class="btn-browse" id="browseAgreements">Browse files</button>
+              </div>
+            </div>
+            <div class="file-list" id="agreementsList"></div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top:12px">
+          <label for="sheetName">Tally Sheet Name <span class="optional">(optional — defaults to first sheet)</span></label>
+          <input type="text" id="sheetName" placeholder="e.g. Sheet1" style="max-width:260px">
+        </div>
+
+        <div class="divider">Choose what to generate</div>
+        <div class="action-grid">
+          <button type="button" class="btn-action btn-collection" id="btnGenCollection" onclick="submitAction('<%= basePath %>/process', false)">
+            <svg class="spinner" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2.5" fill="none" stroke-dasharray="40 20"/></svg>
+            <span class="btn-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              Generate Collection Sheet
+            </span>
+          </button>
+          <button type="button" class="btn-action btn-gst" id="btnGenGst" onclick="submitAction('<%= basePath %>/process-gst', false)">
+            <svg class="spinner" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2.5" fill="none" stroke-dasharray="40 20"/></svg>
+            <span class="btn-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 7H6a2 2 0 00-2 2v9a2 2 0 002 2h9a2 2 0 002-2v-3M18 2l4 4-10 10H8v-4L18 2z"/></svg>
+              Generate GST Workbook
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ══════════════ UPDATE PANEL ══════════════ -->
+      <div id="panelUpdate" style="display:none">
+        <h2 style="margin-top:0">Update Existing Document</h2>
+        <p class="help-text">Upload your existing workbook, the latest Tally receipts, and any new Agreement PDFs to add only new data.</p>
+
+        <div class="form-grid">
+          <!-- Existing Workbook -->
+          <div class="form-group">
+            <label>
+              Existing Workbook (.xlsx)
+              <span class="tag tag-required">Required</span>
+            </label>
+            <div class="drop-zone" id="existingZone">
+              <div class="drop-zone-content">
+                <svg width="32" height="32" viewBox="0 0 36 36" fill="none" stroke="#7c3aed" stroke-width="2"><rect x="4" y="4" width="28" height="28" rx="3"/><path d="M12 18h12M12 23h8"/></svg>
+                <p>Existing Collection Sheet or GST Workbook</p>
+                <p class="file-hint">Must be a previously generated .xlsx</p>
+                <button type="button" class="btn-browse" id="browseExisting">Browse files</button>
+              </div>
+            </div>
+            <div class="file-list" id="existingList"></div>
+          </div>
+
+          <!-- Latest Tally -->
+          <div class="form-group">
+            <label>
+              Latest Tally Receipts (.xlsx)
+              <span class="tag tag-required">Required</span>
+            </label>
+            <div class="drop-zone" id="tallyZoneU">
+              <div class="drop-zone-content">
+                <svg width="32" height="32" viewBox="0 0 36 36" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M18 6v18m0-18l-6 6m6-6l6 6"/><rect x="4" y="24" width="28" height="8" rx="2"/></svg>
+                <p>Drag &amp; drop Tally files here</p>
+                <p class="file-hint">.xlsx / .xls</p>
+                <button type="button" class="btn-browse" id="browseTallyU">Browse files</button>
+              </div>
+            </div>
+            <div class="file-list" id="tallyListU"></div>
+          </div>
+        </div>
+
+        <!-- New Agreement PDFs (update) -->
+        <div class="form-group" style="margin-top:12px">
+          <label>
+            New Agreement PDF(s)
+            <span class="tag tag-optional">Optional — for agreement reconciliation</span>
+          </label>
+          <div class="drop-zone" id="agreementsZoneU" style="padding:16px">
+            <div class="drop-zone-content">
+              <p style="margin:0">Drag &amp; drop or
+                <button type="button" class="btn-browse" id="browseAgreementsU" style="display:inline;padding:4px 12px">Browse PDF(s)</button>
+              </p>
+            </div>
+          </div>
+          <div class="file-list" id="agreementsListU"></div>
+        </div>
+
+        <div class="update-note">
+          <strong>How update works:</strong>
+          Only NEW transactions (not already in your existing workbook) will be added.
+          Duplicates are detected by Flat No. + Date + Amount.
+          Existing formatting is preserved.
+        </div>
+
+        <div class="divider">Choose what to update</div>
+        <div class="action-grid">
+          <button type="button" class="btn-action btn-update-col" id="btnUpdCollection" onclick="submitAction('<%= basePath %>/update-collection', true)">
+            <svg class="spinner" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2.5" fill="none" stroke-dasharray="40 20"/></svg>
+            <span class="btn-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v16h16V8l-4-4H4zm0 0l5 5"/><path d="M9 15h6M9 11h4"/></svg>
+              Update Collection Sheet
+            </span>
+          </button>
+          <button type="button" class="btn-action btn-update-gst" id="btnUpdGst" onclick="submitAction('<%= basePath %>/update-gst', true)">
+            <svg class="spinner" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="2.5" fill="none" stroke-dasharray="40 20"/></svg>
+            <span class="btn-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4"/></svg>
+              Update GST Workbook
+            </span>
+          </button>
+        </div>
+      </div>
+    </div><!-- end .card -->
+
+    <div class="info-card">
+      <h3>How it works</h3>
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><div>
+          <strong>Agreement PDF (OCR)</strong>
+          <p>Page 1 scanned for consideration amount &amp; date. Page 6/7 for purchaser names.</p>
+        </div></div>
+        <div class="step"><div class="step-num">2</div><div>
+          <strong>Tally Receipts</strong>
+          <p>All payment rows extracted with dates and amounts. Bounced cheques deduplicated.</p>
+        </div></div>
+        <div class="step"><div class="step-num">3</div><div>
+          <strong>GST Calculation</strong>
+          <p>Agreement &gt; ₹45,00,000 → <strong>5%</strong>. Otherwise → <strong>1%</strong>. Pre-agreement advances: reverse GST applied (Case 2).</p>
+        </div></div>
+        <div class="step"><div class="step-num">4</div><div>
+          <strong>Collection Sheet</strong>
+          <p>== Summary + Wing B detail, ready to download as Excel.</p>
+        </div></div>
+        <div class="step"><div class="step-num">5</div><div>
+          <strong>GST Workbook</strong>
+          <p>Monthly WORKING + SUMMARY sheets per month. Update mode adds only new months / new entries.</p>
+        </div></div>
+      </div>
+    </div>
+  </div><!-- end .container -->
+
+  <script src="<%= basePath %>/js/upload.js"></script>
+  <script>
+  // ══════════════════════════════════════════════════════════════════
+  //  File Upload Manager — single, conflict-free implementation
+  //
+  //  FIX: Previous version had two JS systems (upload.js + inline)
+  //  both attaching click/change handlers to the same inputs, causing
+  //  files to require double-selection. upload.js is now a blank stub.
+  //  This script is the single source of truth.
+  //
+  //  KEY FIX: Drop zones do NOT have a click handler. Only dedicated
+  //  "Browse files" buttons trigger input.click(). This prevents the
+  //  click-bubbling loop that caused the double-select bug.
+  // ══════════════════════════════════════════════════════════════════
+
+  // ── File stores (one DataTransfer per field) ──
+  const stores = {
+    tally:      new DataTransfer(),
+    agreements: new DataTransfer(),
+    existing:   new DataTransfer(),
+    tallyU:     new DataTransfer(),
+    agreementsU:new DataTransfer(),
+  };
+
+  // ── Actual hidden file inputs (programmatically created, not in DOM) ──
+  // We use real <input type="file"> elements created once and reused.
+  // They live outside any form so the browser doesn't clear them.
+  const inputs = {};
+  ['tally','agreements','existing','tallyU','agreementsU'].forEach(id => {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.multiple = true;
+    if (id === 'tally' || id === 'tallyU') inp.accept = '.xlsx,.xls';
+    if (id === 'agreements' || id === 'agreementsU') inp.accept = '.pdf';
+    if (id === 'existing') inp.accept = '.xlsx';
+    inp.style.display = 'none';
+    document.body.appendChild(inp);
+    inputs[id] = inp;
+
+    // change event — fires ONCE after user closes file dialog
+    inp.addEventListener('change', () => {
+      if (!inp.files.length) return;
+      for (const f of inp.files) {
+        const dup = Array.from(stores[id].files).some(
+          ex => ex.name === f.name && ex.size === f.size
+        );
+        if (!dup) stores[id].items.add(f);
+      }
+      // Reset input so same file can be re-added after removal
+      inp.value = '';
+      renderList(id);
+    });
+  });
+
+  // ── Browse buttons — each triggers its own input ──
+  // CRITICAL: We call e.stopPropagation() to prevent the click from
+  // bubbling up to any parent that might re-trigger input.click().
+  function bindBrowse(btnId, storeId) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      inputs[storeId].click();
+    });
+  }
+  bindBrowse('browseTally',       'tally');
+  bindBrowse('browseAgreements',  'agreements');
+  bindBrowse('browseExisting',    'existing');
+  bindBrowse('browseTallyU',      'tallyU');
+  bindBrowse('browseAgreementsU', 'agreementsU');
+
+  // ── Drop zones ──
+  function bindDrop(zoneId, storeId) {
+    const zone = document.getElementById(zoneId);
+    if (!zone) return;
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      for (const f of e.dataTransfer.files) {
+        const dup = Array.from(stores[storeId].files).some(
+          ex => ex.name === f.name && ex.size === f.size
+        );
+        if (!dup) stores[storeId].items.add(f);
+      }
+      renderList(storeId);
+    });
+  }
+  bindDrop('tallyZone',       'tally');
+  bindDrop('agreementsZone',  'agreements');
+  bindDrop('existingZone',    'existing');
+  bindDrop('tallyZoneU',      'tallyU');
+  bindDrop('agreementsZoneU', 'agreementsU');
+
+  // ── File list renderer ──
+  const listIds = {
+    tally:       'tallyList',
+    agreements:  'agreementsList',
+    existing:    'existingList',
+    tallyU:      'tallyListU',
+    agreementsU: 'agreementsListU',
+  };
+
+  function renderList(storeId) {
+    const el = document.getElementById(listIds[storeId]);
+    if (!el) return;
+    const files = Array.from(stores[storeId].files);
+    if (!files.length) { el.innerHTML = ''; return; }
+    el.innerHTML = files.map((f, i) => `
+      <div class="file-item">
+        <span>📄 ${escHtml(f.name)} <span class="file-size">(${(f.size/1024/1024).toFixed(1)} MB)</span></span>
+        <button type="button" class="btn-remove-file" onclick="removeFile('${storeId}',${i})">✕</button>
+      </div>
+    `).join('');
+  }
+
+  function removeFile(storeId, idx) {
+    const dt = new DataTransfer();
+    Array.from(stores[storeId].files).forEach((f, i) => {
+      if (i !== idx) dt.items.add(f);
+    });
+    stores[storeId] = dt;
+    renderList(storeId);
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── Tab switching ──
+  function switchTab(tab) {
+    document.getElementById('panelGenerate').style.display = tab === 'generate' ? '' : 'none';
+    document.getElementById('panelUpdate').style.display   = tab === 'update'   ? '' : 'none';
+    document.getElementById('tabGenerate').classList.toggle('active', tab === 'generate');
+    document.getElementById('tabUpdate').classList.toggle('active',   tab === 'update');
+  }
+
+  // ── Form submission via fetch + FormData ──
+  // (No hidden forms, no FileList assignment — the most reliable approach)
+  function submitAction(action, isUpdate) {
+    // Validation
+    const tallyStore = isUpdate ? stores.tallyU : stores.tally;
+    const agrStore   = isUpdate ? stores.agreementsU : stores.agreements;
+    const existStore = stores.existing;
+
+    if (!tallyStore.files.length) {
+      alert('Please select at least one Tally receipts file (.xlsx).');
+      return;
+    }
+    if (!isUpdate && action === '/process' && !agrStore.files.length) {
+      alert('Please upload at least one Agreement PDF for the Collection Sheet.');
+      return;
+    }
+    if (isUpdate && !existStore.files.length) {
+      alert('Please upload your existing workbook (.xlsx).');
+      return;
+    }
+
+    // Spinner on active button
+    const btnIds = {
+      '/process':            'btnGenCollection',
+      '/process-gst':        'btnGenGst',
+      '/update-collection':  'btnUpdCollection',
+      '/update-gst':         'btnUpdGst',
+    };
+    const activeBtn = document.getElementById(btnIds[action]);
+    if (activeBtn) { activeBtn.classList.add('loading'); activeBtn.disabled = true; }
+
+    // Build FormData
+    const fd = new FormData();
+    for (const f of tallyStore.files) fd.append('tally', f);
+    for (const f of agrStore.files)   fd.append('agreements', f);
+    if (isUpdate) {
+      for (const f of existStore.files) fd.append('existingWorkbook', f);
+    }
+    const sheet = document.getElementById('sheetName');
+    if (sheet && sheet.value) fd.append('sheet', sheet.value);
+
+    // Submit
+    fetch(action, { method: 'POST', body: fd })
+      .then(res => res.text())
+      .then(html => { document.open(); document.write(html); document.close(); })
+      .catch(err => {
+        alert('Submission failed: ' + err.message);
+        if (activeBtn) { activeBtn.classList.remove('loading'); activeBtn.disabled = false; }
+      });
+  }
+
+  // ── Add remove button style ──
+  const style = document.createElement('style');
+  style.textContent = `
+    .file-item { display:flex; align-items:center; justify-content:space-between;
+      padding:6px 10px; background:#f8fafc; border-radius:7px; margin-top:6px; font-size:13px; }
+    .btn-remove-file { background:none; border:none; cursor:pointer; color:#94a3b8;
+      font-size:14px; padding:0 4px; line-height:1; transition:color .1s; }
+    .btn-remove-file:hover { color:#ef4444; }
+  `;
+  document.head.appendChild(style);
+  </script>
+</body>
+</html>

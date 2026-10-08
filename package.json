@@ -1,0 +1,35 @@
+{
+  "name": "collection-sheet-automation",
+  "version": "1.0.0",
+  "description": "Generate a builder collection sheet (== summary + Wing B detail) from scanned agreement PDFs and a Tally receipts workbook, with GST computed on the 45-lakh rule.",
+  "main": "src/index.js",
+  "bin": {
+    "collection-sheet": "src/index.js"
+  },
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "preview": "node server.js",
+    "cli": "node src/index.js",
+    "test": "node test/run.js"
+  },
+
+  "keywords": [
+    "gst",
+    "collection",
+    "tally",
+    "ocr",
+    "real-estate"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "ejs": "^6.0.1",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
+    "multer": "^2.1.1",
+    "tesseract.js": "^7.0.0",
+    "xlsx": "^0.18.5"
+  }
+}

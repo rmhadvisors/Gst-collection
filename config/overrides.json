@@ -1,0 +1,31 @@
+{
+  "_comment": "Per-flat manual corrections, keyed by flat number.",
+  "1804": {
+    "agreementValue": 4490000,
+    "name": "Mrs. Chhaya T. Kadam",
+    "flatType": "2BHK",
+    "carpetArea": 51.17,
+    "regNo": "2/91",
+    "floor": "18th Floor",
+    "agreementDate": "3/10/26",
+    "extraPayments": [
+      { "date": "3/4/26", "amount": 44900 },
+      { "date": "4/25/26", "amount": 140699 }
+    ]
+  },
+  "904": {
+    "name": "ANKIT JAYESH VORA/JAYESH S VORA",
+    "flatType": "4BHK",
+    "carpetArea": 126.59,
+    "floor": "9TH",
+    "agreementDate": "1/19/26",
+    "paymentCutoff": "1/31/26",
+    "extraPayments": [
+      {
+        "date": "1/21/26",
+        "amount": 615150,
+        "note": "GST on agreement — in CA sheet but not in Tally bank receipt"
+      }
+    ]
+  }
+}

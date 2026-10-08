@@ -1,0 +1,17 @@
+{
+  "_comment": "Reference values for Sunray Reality flat 904 (from CA collection sheet). Use in overrides.json keyed by flat number.",
+  "904": {
+    "name": "ANKIT JAYESH VORA/JAYESH S VORA",
+    "flatType": "4BHK",
+    "carpetArea": 126.59,
+    "floor": "9TH",
+    "agreementDate": "1/19/26",
+    "extraPayments": [
+      {
+        "date": "1/21/26",
+        "amount": 615150,
+        "note": "GST on agreement value — recorded separately in CA sheet, not in Tally bank receipt"
+      }
+    ]
+  }
+}

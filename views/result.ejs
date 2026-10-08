@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Results — CA Office Automation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="<%= basePath %>/css/style.css">
+  <style>
+    .download-bar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+
+    .btn-dl {
+      display:inline-flex; align-items:center; gap:8px;
+      padding:11px 20px; border-radius:10px;
+      font-family:inherit; font-size:14px; font-weight:600;
+      text-decoration:none;
+      transition:transform .15s, box-shadow .15s;
+    }
+    .btn-dl:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.18); }
+    .btn-dl-blue    { background:linear-gradient(135deg,#2563eb,#1d4ed8); color:#fff; }
+    .btn-dl-green   { background:linear-gradient(135deg,#059669,#047857); color:#fff; }
+    .btn-dl-purple  { background:linear-gradient(135deg,#7c3aed,#6d28d9); color:#fff; }
+    .btn-dl-amber   { background:linear-gradient(135deg,#b45309,#92400e); color:#fff; }
+
+    .btn-back {
+      display:inline-flex; align-items:center; gap:6px;
+      padding:10px 16px; border-radius:10px;
+      background:#f1f5f9; color:#334155;
+      font-size:13px; font-weight:500; text-decoration:none;
+      transition:background .15s;
+    }
+    .btn-back:hover { background:#e2e8f0; }
+
+    .stats-bar { display:flex; gap:20px; flex-wrap:wrap; margin-bottom:4px; }
+    .stat { display:flex; flex-direction:column; }
+    .stat-val { font-size:22px; font-weight:700; color:#1e293b; }
+    .stat-lbl { font-size:11px; color:#64748b; font-weight:500;
+      text-transform:uppercase; letter-spacing:.05em; }
+
+    /* Update summary card */
+    .update-summary-card {
+      background:#f8fafc; border:1px solid #e2e8f0;
+      border-radius:12px; padding:20px 24px; margin-bottom:16px;
+    }
+    .update-summary-card h3 { margin:0 0 14px; font-size:15px; color:#1e293b; }
+    .update-row { display:flex; gap:32px; flex-wrap:wrap; }
+    .update-stat { display:flex; flex-direction:column; }
+    .update-stat .v { font-size:28px; font-weight:700; }
+    .update-stat .l { font-size:11.5px; color:#64748b; font-weight:500; text-transform:uppercase; }
+    .new-months-list { margin-top:12px; }
+    .new-months-list .badge { display:inline-block; padding:3px 10px; border-radius:8px;
+      font-size:12px; font-weight:600; margin:3px; }
+    .badge-new  { background:#dcfce7; color:#166534; }
+    .badge-upd  { background:#fef9c3; color:#713f12; }
+    .badge-flat { background:#ede9fe; color:#5b21b6; }
+
+    /* Reconciliation alert */
+    .reconcile-alert {
+      background:#ede9fe; border:1px solid #c4b5fd;
+      border-radius:10px; padding:12px 16px; margin-top:12px;
+      font-size:13px; color:#4c1d95;
+    }
+    .new-flat-alert {
+      background:#f0fdf4; border:1px solid #86efac;
+      border-radius:10px; padding:12px 16px; margin-top:12px;
+      font-size:13px; color:#14532d;
+    }
+    .pdf-warning {
+      background:#fef2f2; border:1px solid #fca5a5;
+      border-radius:10px; padding:12px 16px; margin-top:12px;
+      font-size:13px; color:#7f1d1d;
+    }
+    .pdf-warning ul { margin:4px 0 0 18px; padding:0; }
+    .pdf-warning li { margin:2px 0; }
+  </style>
+</head>
+<body>
+  <div class="container wide">
+    <header>
+      <div class="logo">
+        <svg width="42" height="42" viewBox="0 0 42 42" fill="none">
+          <rect width="42" height="42" rx="11" fill="url(#lg2)"/>
+          <defs><linearGradient id="lg2" x1="0" y1="0" x2="42" y2="42" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#2563eb"/><stop offset="1" stop-color="#059669"/>
+          </linearGradient></defs>
+          <path d="M13 30V12h5v18h-5zm11 0V19h5v11h-5z" fill="#fff"/>
+        </svg>
+        <div>
+          <h1><%= typeof projectName !== 'undefined' && projectName ? projectName : 'CA Office Automation' %></h1>
+          <% if (records && records.length) { %>
+            <p class="subtitle"><%= records.length %> flat(s) processed</p>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- <a href="/dashboard" style="color:var(--text-muted);text-decoration:none;font-size:.85rem;">&larr; Back to Dashboard</a> -->
+
+      <div class="header-actions download-bar">
+        <% if (typeof downloadFile !== 'undefined' && downloadFile) { %>
+          <a href="<%= basePath %>/download/<%= downloadFile %>" class="btn-dl btn-dl-blue" id="btnDownloadCollection">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 18 18"><path d="M9 2v10m0 0l-3-3m3 3l3-3"/><path d="M2 14v1a1 1 0 001 1h12a1 1 0 001-1v-1"/></svg>
+            Download Collection Sheet
+          </a>
+        <% } %>
+        <% if (typeof gstDownloadFile !== 'undefined' && gstDownloadFile) { %>
+          <a href="<%= basePath %>/download-gst/<%= gstDownloadFile %>" class="btn-dl btn-dl-green" id="btnDownloadGst">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 18 18"><path d="M9 2v10m0 0l-3-3m3 3l3-3"/><path d="M2 14v1a1 1 0 001 1h12a1 1 0 001-1v-1"/></svg>
+            Download GST Workbook
+          </a>
+        <% } %>
+        <% if (typeof updatedCollectionFile !== 'undefined' && updatedCollectionFile) { %>
+          <a href="<%= basePath %>/download-updated-collection/<%= updatedCollectionFile %>" class="btn-dl btn-dl-purple" id="btnDownloadUpdCollection">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 18 18"><path d="M9 2v10m0 0l-3-3m3 3l3-3"/><path d="M2 14v1a1 1 0 001 1h12a1 1 0 001-1v-1"/></svg>
+            Download Updated Collection Sheet
+          </a>
+        <% } %>
+        <% if (typeof updatedGstFile !== 'undefined' && updatedGstFile) { %>
+          <a href="<%= basePath %>/download-updated-gst/<%= updatedGstFile %>" class="btn-dl btn-dl-amber" id="btnDownloadUpdGst">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 18 18"><path d="M9 2v10m0 0l-3-3m3 3l3-3"/><path d="M2 14v1a1 1 0 001 1h12a1 1 0 001-1v-1"/></svg>
+            Download Updated GST Workbook
+          </a>
+        <% } %>
+        <a href="<%= basePath %>/" class="btn-back" id="btnNewUpload">
+          <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z"/></svg>
+          New Upload
+        </a>
+      </div>
+    </header>
+
+    <%
+      // Update summary section (for update mode)
+      const us = (typeof updateSummary !== 'undefined' && updateSummary) ? updateSummary : null;
+    %>
+
+    <% if (us) { %>
+    <div class="update-summary-card">
+      <h3>✅ Update Complete</h3>
+      <div class="update-row">
+        <% if (us.newPayments != null) { %>
+        <div class="update-stat">
+          <span class="v" style="color:<%= us.newPayments > 0 ? '#059669' : '#64748b' %>">
+            <%= us.newPayments %>
+          </span>
+          <span class="l">New Payments Added</span>
+        </div>
+        <% } %>
+        <% if (us.newMonths && us.newMonths.length != null) { %>
+        <div class="update-stat">
+          <span class="v" style="color:<%= us.newMonths.length > 0 ? '#2563eb' : '#64748b' %>">
+            <%= us.newMonths.length %>
+          </span>
+          <span class="l">New Months Generated</span>
+        </div>
+        <% } %>
+        <% if (us.updatedMonths && us.updatedMonths.length != null) { %>
+        <div class="update-stat">
+          <span class="v" style="color:<%= us.updatedMonths.length > 0 ? '#b45309' : '#64748b' %>">
+            <%= us.updatedMonths.length %>
+          </span>
+          <span class="l">Months Updated (Late Entries)</span>
+        </div>
+        <% } %>
+      </div>
+
+      <% if (us.newMonths && us.newMonths.length) { %>
+      <div class="new-months-list">
+        <strong style="font-size:12px; color:#475569; text-transform:uppercase; letter-spacing:.05em">New months added:</strong><br>
+        <% for (const m of us.newMonths) { %>
+          <span class="badge badge-new"><%= m %></span>
+        <% } %>
+      </div>
+      <% } %>
+
+      <% if (us.updatedMonths && us.updatedMonths.length) { %>
+      <div class="new-months-list">
+        <strong style="font-size:12px; color:#475569; text-transform:uppercase; letter-spacing:.05em">Months updated (late entries):</strong><br>
+        <% for (const m of us.updatedMonths) { %>
+          <span class="badge badge-upd"><%= m %></span>
+        <% } %>
+      </div>
+      <% } %>
+
+      <% if (us.reconciledFlats && us.reconciledFlats.length) { %>
+      <div class="reconcile-alert">
+        🔄 <strong>Agreement Reconciliation:</strong>
+        Flat(s) upgraded from Tally-Only → Agreement record:
+        <% for (const f of us.reconciledFlats) { %>
+          <span class="badge badge-flat">Flat <%= f %></span>
+        <% } %>
+      </div>
+      <% } %>
+
+      <% if (us.newFlats && us.newFlats.length) { %>
+      <div class="new-flat-alert">
+        ➕ <strong>New Flats Added:</strong>
+        <% for (const f of us.newFlats) { %>
+          <span class="badge badge-new">Flat <%= f %></span>
+        <% } %>
+      </div>
+      <% } %>
+
+      <% if (us.pdfWarnings && us.pdfWarnings.length) { %>
+      <div class="pdf-warning">
+        ⚠️ <strong>Agreement PDF Warnings (<%= us.pdfWarnings.length %> file(s) could not be processed):</strong>
+        <ul>
+          <% for (const w of us.pdfWarnings) { %>
+            <li><strong><%= w.file %></strong> — <%= w.error %></li>
+          <% } %>
+        </ul>
+      </div>
+      <% } %>
+
+      <% const noChange = us.newPayments === 0 && (!us.reconciledFlats || !us.reconciledFlats.length)
+                       && (!us.newFlats || !us.newFlats.length)
+                       && (!us.newMonths || !us.newMonths.length)
+                       && (!us.updatedMonths || !us.updatedMonths.length); %>
+      <% if (noChange) { %>
+        <p style="margin:12px 0 0; color:#64748b; font-size:13px">
+          ℹ️ No new transactions or agreements found. Your existing workbook is already up to date.
+        </p>
+      <% } %>
+    </div>
+    <% } %>
+
+    <%
+      // Stats bar for generate mode
+      if (records && records.length) {
+        const totalReceived = records.reduce((s, r) => s + (r.totalReceived || 0), 0);
+        const totalGst = records.reduce((s, r) => s + (r.totalGst || 0), 0);
+        const withAgreement = records.filter(r => r.hasAgreement).length;
+        const tallyOnly = records.filter(r => !r.hasAgreement).length;
+        function fmtCr(n) {
+          if (n >= 10000000) return (n/10000000).toFixed(2) + ' Cr';
+          if (n >= 100000)   return (n/100000).toFixed(2) + ' L';
+          return n.toLocaleString('en-IN');
+        }
+    %>
+    <div class="sheet-card" style="padding:18px 24px;">
+      <div class="stats-bar">
+        <div class="stat"><span class="stat-val">₹<%= fmtCr(totalReceived) %></span><span class="stat-lbl">Total Received</span></div>
+        <div class="stat"><span class="stat-val">₹<%= fmtCr(totalGst) %></span><span class="stat-lbl">Total GST</span></div>
+        <div class="stat"><span class="stat-val"><%= withAgreement %></span><span class="stat-lbl">With Agreement</span></div>
+        <div class="stat"><span class="stat-val"><%= tallyOnly %></span><span class="stat-lbl">Tally-Only</span></div>
+        <div class="stat"><span class="stat-val"><%= records.length %></span><span class="stat-lbl">Total Flats</span></div>
+      </div>
+    </div>
+
+    <% for (const rec of records) { %>
+    <div class="sheet-card">
+      <div class="sheet-meta">
+        <span class="badge flat-badge">Flat <%= rec.flatNo %></span>
+        <span class="badge"><%= rec.floorLabel %></span>
+        <% if (rec.flatType) { %><span class="badge"><%= rec.flatType %></span><% } %>
+        <span class="badge gst-badge">GST @ <%= rec.gstRate ? (rec.gstRate * 100) + '%' : '-' %></span>
+        <% if (rec.hasAgreement) { %>
+          <% if (rec.gstCase === 2) { %>
+            <span class="badge badge-warn">Case 2 — Pre-Agr Advance</span>
+          <% } %>
+        <% } else { %>
+          <span class="badge badge-info"><%= rec.status || 'Tally Only' %></span>
+        <% } %>
+      </div>
+
+      <div class="table-wrapper">
+        <table class="collection-table">
+          <thead>
+            <tr>
+              <th>Sr.</th><th>FLOOR</th><th>FLAT</th><th>TYPE</th>
+              <th>CARPET<br>(Sqmt)</th><th>REG. NO.</th><th>DATE OF<br>AGREEMENT</th>
+              <th>PURCHASER'S NAMES</th><th>AGREEMENT<br>VALUE</th>
+              <th>GST ON<br>AGREEMENT</th>
+              <% if (rec.gstCase === 2) { %>
+                <th style="color:#b45309">ADVANCES<br>BEFORE AGR.</th>
+                <th style="color:#b45309">REVERSE<br>GST</th>
+                <th style="color:#b45309">OUTSTANDING<br>GST</th>
+              <% } %>
+              <th>DATE RECEIVED</th><th>AMOUNT<br>RECEIVED</th>
+              <th>GST ON<br>ADVANCE</th><th>BALANCE</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="row-summary">
+              <td><%= records.indexOf(rec) + 1 %></td>
+              <td><%= rec.floorLabel %></td>
+              <td class="flat-no"><%= rec.flatNo %></td>
+              <td><%= rec.flatType %></td>
+              <td><%= rec.carpetArea || '' %></td>
+              <td><%= rec.regNo %></td>
+              <td class="date-cell"><%= rec.agreementDate %></td>
+              <td class="name-cell"><%= rec.name %></td>
+              <td class="money highlight-green"><%= fmtINR(rec.agreementValue) %></td>
+              <td class="money highlight-yellow"><%= fmtINR(rec.gstOnAgreement) %></td>
+              <% if (rec.gstCase === 2) { %>
+                <td class="money" style="background:#fef3c7"><%= fmtINR(rec.advancesBeforeAgreement) %></td>
+                <td class="money" style="background:#fef3c7"><%= fmtINR(rec.reverseGstOnAdvances) %></td>
+                <td class="money" style="background:#fef3c7"><%= fmtINR(rec.outstandingGst) %></td>
+              <% } %>
+              <td class="total-label">TOTAL ::</td>
+              <td class="money highlight-green"><%= fmtINR(rec.totalReceived) %></td>
+              <td class="money"><%= fmtINR(rec.totalGst) %></td>
+              <td class="money highlight-red"><%= fmtINR(rec.balance) %></td>
+            </tr>
+            <% for (const p of rec.payments) { %>
+            <tr class="row-payment">
+              <td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+              <td class="dash">-</td>
+              <td></td><td></td>
+              <% if (rec.gstCase === 2) { %><td></td><td></td><td></td><% } %>
+              <td class="date-cell"><%= p.dateText %></td>
+              <td class="money"><%= fmtINR(p.amount) %></td>
+              <td class="money"><%= fmtINR(p.gst) %></td>
+              <td></td>
+            </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <% } %>
+    <% } /* end if records.length */ %>
+
+  </div>
+</body>
+</html>

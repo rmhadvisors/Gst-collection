@@ -1,0 +1,7 @@
+node_modules/
+_agreement_pages/
+_pages/
+*.traineddata
+collection-output.xlsx
+uploads/
+/output/
