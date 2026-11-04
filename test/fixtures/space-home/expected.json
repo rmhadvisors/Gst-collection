@@ -1,0 +1,1316 @@
+{
+ "client": "Space Home (Yashwant County)",
+ "inputs": {
+  "tally": [
+   "tally receipts.xlsx"
+  ],
+  "agreementStubs": [
+   {
+    "flatNoHint": "1804",
+    "agreementValue": 4490000,
+    "names": [],
+    "valueCandidates": []
+   }
+  ],
+  "overrides": {}
+ },
+ "expected": {
+  "files": [
+   {
+    "file": "tally receipts.xlsx",
+    "receipts": 143,
+    "total": 100491161
+   }
+  ],
+  "tallyTotal": 100491161,
+  "unallocated": {
+   "count": 4,
+   "total": 152001
+  },
+  "reconciliation": "MATCHED",
+  "sheets": [
+   "Summary",
+   "Flats",
+   "Audit",
+   "Unallocated Receipts"
+  ],
+  "warning": false,
+  "flats": {
+   "105": {
+    "name": "Ms.Lavita Leo Noronha",
+    "totalReceived": 409160,
+    "totalGst": 4091.6,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "4/23/25",
+      60080,
+      600.8,
+      "271"
+     ],
+     [
+      "9/30/25",
+      349080,
+      3490.8,
+      "342"
+     ]
+    ]
+   },
+   "106": {
+    "name": "Kamlesh Dangi",
+    "totalReceived": 3000000,
+    "totalGst": 30000,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "8/8/25",
+      1000000,
+      10000,
+      "311"
+     ],
+     [
+      "9/2/25",
+      1000000,
+      10000,
+      ""
+     ],
+     [
+      "2/4/26",
+      500000,
+      5000,
+      "399"
+     ],
+     [
+      "2/6/26",
+      500000,
+      5000,
+      "400"
+     ]
+    ]
+   },
+   "108": {
+    "name": "Melwyn Mark Sequeira Lavina M.Sequeira",
+    "totalReceived": 307499,
+    "totalGst": 3074.99,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "9/30/25",
+      307499,
+      3074.99,
+      "340"
+     ]
+    ]
+   },
+   "109": {
+    "name": "Melwyn Mark & Lavina M.Sequeira",
+    "totalReceived": 697502,
+    "totalGst": 6975.02,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "5/24/25",
+      1,
+      0.01,
+      ""
+     ],
+     [
+      "5/24/25",
+      1,
+      0.01,
+      ""
+     ],
+     [
+      "5/26/25",
+      187500,
+      1875,
+      "289"
+     ],
+     [
+      "9/30/25",
+      510000,
+      5100,
+      "341"
+     ]
+    ]
+   },
+   "309": {
+    "name": "Irwin Kennath Karkada",
+    "totalReceived": 6552000,
+    "totalGst": 65520,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "5/23/25",
+      300000,
+      3000,
+      "282"
+     ],
+     [
+      "5/27/25",
+      36000,
+      360,
+      "286"
+     ],
+     [
+      "5/31/25",
+      5748000,
+      57480,
+      "293"
+     ],
+     [
+      "9/19/25",
+      468000,
+      4680,
+      "329"
+     ]
+    ]
+   },
+   "405": {
+    "name": "Pradeep Bhagat & Riya P. Bhagat",
+    "totalReceived": 1139775,
+    "totalGst": 11397.75,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "5/26/25",
+      138000,
+      1380,
+      "284"
+     ],
+     [
+      "5/27/25",
+      676125,
+      6761.25,
+      "290"
+     ],
+     [
+      "9/17/25",
+      55000,
+      550,
+      "322"
+     ],
+     [
+      "9/19/25",
+      270650,
+      2706.5,
+      "325"
+     ]
+    ]
+   },
+   "506": {
+    "name": "Dattatray N. Hegde",
+    "totalReceived": 51000,
+    "totalGst": 510,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "2/26/26",
+      51000,
+      510,
+      "405"
+     ]
+    ]
+   },
+   "508": {
+    "name": "Lucas J Castellino",
+    "totalReceived": 400000,
+    "totalGst": 4000,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "4/26/25",
+      400000,
+      4000,
+      "265"
+     ]
+    ]
+   },
+   "509": {
+    "name": "Alston Torres & Nelufer Menezes",
+    "totalReceived": 988176,
+    "totalGst": 9881.76,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "4/29/25",
+      494080,
+      4940.8,
+      "274"
+     ],
+     [
+      "9/16/25",
+      494096,
+      4940.96,
+      "323"
+     ]
+    ]
+   },
+   "606": {
+    "name": "Prajakta Vartak & Sagar Vartak",
+    "totalReceived": 5880000,
+    "totalGst": 58800,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "4/17/25",
+      120000,
+      1200,
+      "249"
+     ],
+     [
+      "6/18/25",
+      5440000,
+      54400,
+      "303"
+     ],
+     [
+      "10/7/25",
+      320000,
+      3200,
+      "357"
+     ]
+    ]
+   },
+   "704": {
+    "name": "Nita Nitin Mande/Kalyani N. Mande",
+    "totalReceived": 486711,
+    "totalGst": 4867.11,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "5/28/25",
+      159576,
+      1595.76,
+      "291"
+     ],
+     [
+      "7/11/25",
+      7980,
+      79.8,
+      "321"
+     ],
+     [
+      "9/24/25",
+      319155,
+      3191.55,
+      "332"
+     ]
+    ]
+   },
+   "708": {
+    "name": "Anjali Ramesh Kumar Vishwakarma",
+    "totalReceived": 6187520,
+    "totalGst": 61875.2,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "8/4/25",
+      100001,
+      1000.01,
+      "310"
+     ],
+     [
+      "9/8/25",
+      221429,
+      2214.29,
+      "317"
+     ],
+     [
+      "10/28/25",
+      5866090,
+      58660.9,
+      "363"
+     ]
+    ]
+   },
+   "709": {
+    "name": "Mr.Murli S.Menon & Sunila M.Menon",
+    "totalReceived": 350000,
+    "totalGst": 3500,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "4/19/25",
+      200000,
+      2000,
+      "257"
+     ],
+     [
+      "10/2/25",
+      150000,
+      1500,
+      "343"
+     ]
+    ]
+   },
+   "804": {
+    "name": "Jeevan D. & Shruti J.Mahimkar",
+    "totalReceived": 965812,
+    "totalGst": 9658.12,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "5/22/25",
+      520052,
+      5200.52,
+      "283"
+     ],
+     [
+      "9/16/25",
+      445760,
+      4457.6,
+      "319"
+     ]
+    ]
+   },
+   "806": {
+    "name": "Shweta Fernandes",
+    "totalReceived": 3898000,
+    "totalGst": 38980,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "5/5/25",
+      300000,
+      3000,
+      "275"
+     ],
+     [
+      "5/8/25",
+      25000,
+      250,
+      "279"
+     ],
+     [
+      "5/30/25",
+      1575000,
+      15750,
+      "294"
+     ],
+     [
+      "6/17/25",
+      880000,
+      8800,
+      "304"
+     ],
+     [
+      "10/5/25",
+      77000,
+      770,
+      "356"
+     ],
+     [
+      "10/19/25",
+      500000,
+      5000,
+      "361"
+     ],
+     [
+      "11/7/25",
+      500000,
+      5000,
+      "366"
+     ],
+     [
+      "11/7/25",
+      41000,
+      410,
+      "378"
+     ]
+    ]
+   },
+   "807": {
+    "name": "Madhura Joel Menezes & Joel W Menezes",
+    "totalReceived": 804000,
+    "totalGst": 8040,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "4/28/25",
+      426000,
+      4260,
+      "268"
+     ],
+     [
+      "9/19/25",
+      378000,
+      3780,
+      "326"
+     ]
+    ]
+   },
+   "901": {
+    "name": "Neha A.Chavan & Ashish V. Chavan",
+    "totalReceived": 1566416,
+    "totalGst": 15664.16,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "4/22/25",
+      1116813,
+      11168.13,
+      "262"
+     ],
+     [
+      "10/4/25",
+      449603,
+      4496.03,
+      "347"
+     ]
+    ]
+   },
+   "905": {
+    "name": "Leena Vilas Pawar",
+    "totalReceived": 3258000,
+    "totalGst": 32580,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "12/27/25",
+      100000,
+      1000,
+      "382"
+     ],
+     [
+      "1/19/26",
+      190000,
+      1900,
+      "387"
+     ],
+     [
+      "1/31/26",
+      2968000,
+      29680,
+      ""
+     ]
+    ]
+   },
+   "906": {
+    "name": "Shibu Srinivas Nair",
+    "totalReceived": 1615000,
+    "totalGst": 16150,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "4/25/25",
+      425000,
+      4250,
+      "264"
+     ],
+     [
+      "9/19/25",
+      510000,
+      5100,
+      "327"
+     ],
+     [
+      "10/31/25",
+      680000,
+      6800,
+      "365"
+     ]
+    ]
+   },
+   "908": {
+    "name": "Calvin Lawrence & Lawrence J.Braganza",
+    "totalReceived": 1422750,
+    "totalGst": 14227.5,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "4/23/25",
+      745250,
+      7452.5,
+      "261"
+     ],
+     [
+      "9/19/25",
+      406500,
+      4065,
+      "328"
+     ],
+     [
+      "3/30/26",
+      271000,
+      2710,
+      "434"
+     ]
+    ]
+   },
+   "1004": {
+    "name": "P.Xavier Ajith Raja &A.Mary Punitha",
+    "totalReceived": 649000,
+    "totalGst": 6490,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "4/23/25",
+      295000,
+      2950,
+      "263"
+     ],
+     [
+      "9/27/25",
+      354000,
+      3540,
+      "337"
+     ]
+    ]
+   },
+   "1006": {
+    "name": "Rohit D.Manake & Rahul D. Manake",
+    "totalReceived": 1226720,
+    "totalGst": 12267.2,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "5/7/25",
+      557600,
+      5576,
+      "280"
+     ],
+     [
+      "9/25/25",
+      669120,
+      6691.2,
+      "333"
+     ]
+    ]
+   },
+   "1007": {
+    "name": "Rahul P.Desai & Rashmi R.Desai",
+    "totalReceived": 853163,
+    "totalGst": 8531.63,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "5/3/25",
+      389438,
+      3894.38,
+      "287"
+     ],
+     [
+      "10/30/25",
+      463725,
+      4637.25,
+      "364"
+     ]
+    ]
+   },
+   "1008": {
+    "name": "Pritam Prakash & Prakash P.Salunkhe",
+    "totalReceived": 1252764,
+    "totalGst": 12527.64,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "5/7/25",
+      810612,
+      8106.12,
+      "281"
+     ],
+     [
+      "10/3/25",
+      442152,
+      4421.52,
+      "346"
+     ]
+    ]
+   },
+   "1104": {
+    "name": "Renold J Rodrigues",
+    "totalReceived": 704769,
+    "totalGst": 7047.69,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "4/21/25",
+      292532,
+      2925.32,
+      "260"
+     ],
+     [
+      "10/3/25",
+      412237,
+      4122.37,
+      "348"
+     ]
+    ]
+   },
+   "1105": {
+    "name": "Glaston Dsouza",
+    "totalReceived": 4407000,
+    "totalGst": 44070,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "6/2/25",
+      150000,
+      1500,
+      "292"
+     ],
+     [
+      "7/1/25",
+      143500,
+      1435,
+      "308"
+     ],
+     [
+      "7/25/25",
+      3918000,
+      39180,
+      "320"
+     ],
+     [
+      "9/29/25",
+      195500,
+      1955,
+      "338"
+     ]
+    ]
+   },
+   "1106": {
+    "name": "Pravin Kumar/Madhulika Kumari",
+    "totalReceived": 1114349,
+    "totalGst": 11143.49,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "5/20/25",
+      557174,
+      5571.74,
+      "288"
+     ],
+     [
+      "10/25/25",
+      557175,
+      5571.75,
+      "362"
+     ]
+    ]
+   },
+   "1201": {
+    "name": "Vilas Chavan",
+    "totalReceived": 200000,
+    "totalGst": 2000,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "2/26/26",
+      200000,
+      2000,
+      "404"
+     ]
+    ]
+   },
+   "1202": {
+    "name": "Bhaavish Rajput & Manjula K Rajput",
+    "totalReceived": 934500,
+    "totalGst": 9345,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "4/23/25",
+      489500,
+      4895,
+      "259"
+     ],
+     [
+      "9/16/25",
+      267000,
+      2670,
+      "318"
+     ],
+     [
+      "3/28/26",
+      178000,
+      1780,
+      "433"
+     ]
+    ]
+   },
+   "1203": {
+    "name": "Darshan Naresh Rajvansh",
+    "totalReceived": 591383,
+    "totalGst": 5913.83,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "4/30/25",
+      268811,
+      2688.11,
+      "269"
+     ],
+     [
+      "9/25/25",
+      322572,
+      3225.72,
+      "334"
+     ]
+    ]
+   },
+   "1204": {
+    "name": "Pooja Vijay Kadam",
+    "totalReceived": 982940,
+    "totalGst": 9829.4,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "6/3/25",
+      561680,
+      5616.8,
+      "296"
+     ],
+     [
+      "9/26/25",
+      421260,
+      4212.6,
+      "335"
+     ]
+    ]
+   },
+   "1205": {
+    "name": "Pooja Vijay Kadam",
+    "totalReceived": 834365,
+    "totalGst": 8343.65,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "6/3/25",
+      476780,
+      4767.8,
+      "297"
+     ],
+     [
+      "9/26/25",
+      357585,
+      3575.85,
+      "336"
+     ]
+    ]
+   },
+   "1304": {
+    "name": "Michael Nunes & Deirdre Monteiro",
+    "totalReceived": 5314155,
+    "totalGst": 53141.55,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "9/3/25",
+      50000,
+      500,
+      "316"
+     ],
+     [
+      "10/2/25",
+      226060,
+      2260.6,
+      "344"
+     ],
+     [
+      "11/15/25",
+      5038095,
+      50380.95,
+      "373"
+     ]
+    ]
+   },
+   "1305": {
+    "name": "Elvis Francis Gomes",
+    "totalReceived": 703320,
+    "totalGst": 7033.2,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "4/23/25",
+      351660,
+      3516.6,
+      "272"
+     ],
+     [
+      "9/19/25",
+      351660,
+      3516.6,
+      "324"
+     ]
+    ]
+   },
+   "1306": {
+    "name": "Karan R. Mehra & Smita R.Mehra",
+    "totalReceived": 1355952,
+    "totalGst": 13559.52,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "4/28/25",
+      677976,
+      6779.76,
+      "273"
+     ],
+     [
+      "10/8/25",
+      677976,
+      6779.76,
+      "358"
+     ]
+    ]
+   },
+   "1504": {
+    "name": "Rupa Rakash Save",
+    "totalReceived": 484000,
+    "totalGst": 4840,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "4/21/25",
+      220000,
+      2200,
+      "258"
+     ],
+     [
+      "9/29/25",
+      264000,
+      2640,
+      "339"
+     ]
+    ]
+   },
+   "1506": {
+    "name": "Yogendra A.Jitendra A.& Kamlesh Singh",
+    "totalReceived": 405000,
+    "totalGst": 4050,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "6/3/25",
+      405000,
+      4050,
+      "295"
+     ]
+    ]
+   },
+   "1604": {
+    "name": "Abhay Kamlakar Patil",
+    "totalReceived": 1700000,
+    "totalGst": 17000,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "11/24/25",
+      100000,
+      1000,
+      "370"
+     ],
+     [
+      "11/24/25",
+      100000,
+      1000,
+      "371"
+     ],
+     [
+      "11/24/25",
+      50000,
+      500,
+      "372"
+     ],
+     [
+      "11/27/25",
+      150000,
+      1500,
+      "374"
+     ],
+     [
+      "11/27/25",
+      50000,
+      500,
+      "375"
+     ],
+     [
+      "11/27/25",
+      50000,
+      500,
+      "376"
+     ],
+     [
+      "1/19/26",
+      500000,
+      5000,
+      "389"
+     ],
+     [
+      "1/29/26",
+      150000,
+      1500,
+      "393"
+     ],
+     [
+      "1/29/26",
+      50000,
+      500,
+      "394"
+     ],
+     [
+      "1/29/26",
+      50000,
+      500,
+      "395"
+     ],
+     [
+      "2/1/26",
+      150000,
+      1500,
+      "396"
+     ],
+     [
+      "2/1/26",
+      50000,
+      500,
+      "397"
+     ],
+     [
+      "2/1/26",
+      50000,
+      500,
+      "398"
+     ],
+     [
+      "3/17/26",
+      150000,
+      1500,
+      "409"
+     ],
+     [
+      "3/17/26",
+      50000,
+      500,
+      ""
+     ]
+    ]
+   },
+   "1605": {
+    "name": "Shrutika Patil Cancelled",
+    "totalReceived": 224500,
+    "totalGst": 2245,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "7/21/25",
+      50000,
+      500,
+      "309"
+     ],
+     [
+      "10/16/25",
+      174500,
+      1745,
+      "353"
+     ]
+    ]
+   },
+   "1606": {
+    "name": "Rajeev Desai & Nisha/Tanish Desai",
+    "totalReceived": 6114240,
+    "totalGst": 61142.4,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "7/1/25",
+      50000,
+      500,
+      "307"
+     ],
+     [
+      "9/2/25",
+      1000000,
+      10000,
+      "312"
+     ],
+     [
+      "10/16/25",
+      100,
+      1,
+      "360"
+     ],
+     [
+      "10/16/25",
+      3000000,
+      30000,
+      "350"
+     ],
+     [
+      "11/24/25",
+      1000000,
+      10000,
+      "367"
+     ],
+     [
+      "12/15/25",
+      1064140,
+      10641.4,
+      "380"
+     ]
+    ]
+   },
+   "1704": {
+    "name": "Parikshit Rana",
+    "totalReceived": 3081983,
+    "totalGst": 30819.83,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "1/16/26",
+      100000,
+      1000,
+      "384"
+     ],
+     [
+      "1/24/26",
+      2981983,
+      29819.83,
+      "393"
+     ]
+    ]
+   },
+   "1706": {
+    "name": "Alok Prabhakar & Nutan Kumari",
+    "totalReceived": 7920000,
+    "totalGst": 79200,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "1/16/26",
+      100000,
+      1000,
+      "383"
+     ],
+     [
+      "1/19/26",
+      800000,
+      8000,
+      "386"
+     ],
+     [
+      "2/7/26",
+      7020000,
+      70200,
+      "407"
+     ]
+    ]
+   },
+   "1708": {
+    "name": "Praveen P.Surana",
+    "totalReceived": 484000,
+    "totalGst": 4840,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "5/3/25",
+      220000,
+      2200,
+      "298"
+     ],
+     [
+      "9/22/25",
+      264000,
+      2640,
+      "330"
+     ]
+    ]
+   },
+   "1709": {
+    "name": "Mamta Praveen Surana",
+    "totalReceived": 484000,
+    "totalGst": 4840,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "5/7/25",
+      220000,
+      2200,
+      "299"
+     ],
+     [
+      "9/22/25",
+      264000,
+      2640,
+      "331"
+     ]
+    ]
+   },
+   "1804": {
+    "name": "Mrs. Chhaya T. Kadam",
+    "totalReceived": 4183010,
+    "totalGst": 41830.1,
+    "balance": 351890,
+    "agreementValue": 4490000,
+    "payments": [
+     [
+      "12/26/25",
+      1100000,
+      11000,
+      "381"
+     ],
+     [
+      "1/1/26",
+      1100000,
+      11000,
+      "381"
+     ],
+     [
+      "1/20/26",
+      1100000,
+      11000,
+      "390"
+     ],
+     [
+      "1/20/26",
+      400000,
+      4000,
+      "391"
+     ],
+     [
+      "3/20/26",
+      483010,
+      4830.1,
+      "411"
+     ]
+    ]
+   },
+   "1805": {
+    "name": "Shaktiganesh Bikas Dande",
+    "totalReceived": 4729725,
+    "totalGst": 47297.25,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "10/27/25",
+      51000,
+      510,
+      "354"
+     ],
+     [
+      "11/24/25",
+      494738,
+      4947.38,
+      "369"
+     ],
+     [
+      "12/6/25",
+      4183987,
+      41839.87,
+      "379"
+     ]
+    ]
+   },
+   "1806": {
+    "name": "Pallavi /deepak B.Pardakhe",
+    "totalReceived": 1045001,
+    "totalGst": 10450.01,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "4/28/25",
+      475001,
+      4750.01,
+      "266"
+     ],
+     [
+      "10/11/25",
+      570000,
+      5700,
+      "359"
+     ]
+    ]
+   },
+   "1807": {
+    "name": "Mrs.Pallavi D.& Deepak B.Pardakhe",
+    "totalReceived": 715000,
+    "totalGst": 7150,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "4/28/25",
+      325000,
+      3250,
+      "267"
+     ],
+     [
+      "10/4/25",
+      390000,
+      3900,
+      "355"
+     ]
+    ]
+   },
+   "1901": {
+    "name": "Ankush M.Gharat",
+    "totalReceived": 7665000,
+    "totalGst": 76650,
+    "balance": null,
+    "agreementValue": null,
+    "payments": [
+     [
+      "2/23/26",
+      475000,
+      4750,
+      "403"
+     ],
+     [
+      "3/7/26",
+      7190000,
+      71900,
+      "406"
+     ]
+    ]
+   }
+  }
+ }
+}

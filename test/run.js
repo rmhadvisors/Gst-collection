@@ -85,7 +85,7 @@ ok('tally date 26-Dec-25 -> 12/26/25 (no TZ shift)', () => {
 });
 
 console.log('\nTally merging logic');
-ok('mergeTallies merges multiple sheets, dedups, and sorts', () => {
+ok('mergeTallies merges multiple sheets, keeps repeats (flagged) and sorts', () => {
   const t1 = {
     projectName: 'Building A',
     rows: [
@@ -97,7 +97,7 @@ ok('mergeTallies merges multiple sheets, dedups, and sorts', () => {
     projectName: 'Building B',
     rows: [
       { flatNo: '101', name: 'Buyer One Alias', date: new Date('2026-01-03'), amount: 150000, vchNo: '103' },
-      // TRUE duplicate: same vchNo + amount + SAME date (operator re-entry error) — should dedup to 1
+      // repeat: same vchNo + amount + date — kept and flagged
       { flatNo: '102', name: 'Buyer Two', date: new Date('2026-01-05'), amount: 200000, vchNo: '102' }
     ]
   };
@@ -119,8 +119,9 @@ ok('mergeTallies merges multiple sheets, dedups, and sorts', () => {
 
   const flat102 = merged.byFlat.get('102');
   assert.ok(flat102);
-  // vchNo 102, amount 200000, date Jan 5 appears twice (same date = true dup) → keep only 1
-  assert.strictEqual(flat102.payments.length, 1);
+  // same vchNo + amount + date twice: never dropped, both flagged "possible duplicate"
+  assert.strictEqual(flat102.payments.length, 2);
+  assert.ok(flat102.payments.every((p) => p.dupVoucher));
   assert.strictEqual(flat102.payments[0].date.getTime(), new Date('2026-01-05').getTime());
 });
 

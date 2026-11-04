@@ -49,7 +49,7 @@ fs.mkdirSync(WORK_DIR, { recursive: true });
  */
 function countWingBBlocks(xlsxPath) {
   const wb  = XLSX.readFile(xlsxPath);
-  const ws  = wb.Sheets[wb.SheetNames.find(n => n.trim() === 'Wing B')];
+  const ws  = wb.Sheets[wb.SheetNames.find(n => ['Wing B', 'Flats'].includes(n.trim()))];
   const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
   const recs = parseWingBAoa(aoa);
   // Return map of flatNo → record for deep inspection
@@ -214,7 +214,7 @@ async function runTests() {
   // Parse the CA manual sheet (has Excel serial dates)
   const CA_SHEET = path.join(SAMPLES, 'COLLECTION DETAILS.. SPACE HOMES - final (2).xlsx');
   const caWb = XLSX.readFile(CA_SHEET);
-  const caWsName = caWb.SheetNames.find(n => n.trim() === 'Wing B');
+  const caWsName = caWb.SheetNames.find(n => ['Wing B', 'Flats'].includes(n.trim()));
   const caWs  = caWb.Sheets[caWsName];
   const caAoa = XLSX.utils.sheet_to_json(caWs, { header: 1, defval: '' });
   const caRecs = parseWingBAoa(caAoa);

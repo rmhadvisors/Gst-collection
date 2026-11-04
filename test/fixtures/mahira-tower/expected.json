@@ -1,0 +1,109 @@
+{
+ "client": "Mahira Tower (Wing A + Wing B)",
+ "inputs": {
+  "tally": [
+   "BOM.xlsx",
+   "FEDRAL BANK RECEIPT 26-27.xlsx"
+  ],
+  "agreements": [
+   "B-603_1.pdf"
+  ],
+  "overrides": {
+   "allocate": {
+    "81": "B-603",
+    "82": "B-603"
+   }
+  }
+ },
+ "expected": {
+  "files": [
+   {
+    "file": "BOM.xlsx",
+    "receipts": 31,
+    "total": 20836664
+   },
+   {
+    "file": "FEDRAL BANK RECEIPT 26-27.xlsx",
+    "receipts": 42,
+    "total": 12089070.28
+   }
+  ],
+  "tallyTotal": 32925734.28,
+  "unallocated": {
+   "count": 31,
+   "total": 16695796.28
+  },
+  "reconciliation": "MATCHED",
+  "sheets": [
+   "Summary",
+   "Wing A",
+   "Wing B",
+   "Audit",
+   "Unallocated Receipts"
+  ],
+  "warning": false,
+  "flats": {
+   "A-106": {
+    "totalReceived": 1500000
+   },
+   "A-503": {
+    "totalReceived": 3156000
+   },
+   "A-504": {
+    "totalReceived": 200000
+   },
+   "A-904": {
+    "totalReceived": 200000
+   },
+   "A-905": {
+    "totalReceived": 100000
+   },
+   "A-1104": {
+    "totalReceived": 200000
+   },
+   "A-1504": {
+    "totalReceived": 331002
+   },
+   "B-603": {
+    "totalReceived": 84400,
+    "agreementValue": 2610000
+   },
+   "B-607": {
+    "totalReceived": 3090100,
+    "agreementValue": 3030000,
+    "agreementDate": "27/08/2026"
+   },
+   "B-803": {
+    "totalReceived": 21000
+   },
+   "B-804": {
+    "totalReceived": 480000
+   },
+   "B-1001": {
+    "totalReceived": 191940
+   },
+   "B-1002": {
+    "totalReceived": 2250000
+   },
+   "B-1201": {
+    "totalReceived": 191940
+   },
+   "B-1401": {
+    "totalReceived": 452000
+   },
+   "B-1402": {
+    "totalReceived": 452000
+   },
+   "B-1601": {
+    "totalReceived": 452000
+   },
+   "B-1602": {
+    "totalReceived": 452000
+   },
+   "B-1801": {
+    "totalReceived": 2425556
+   }
+  }
+ },
+ "_provenance": "expected.flats = CA-verified figures (received per flat, B-603/B-607 value, B-607 date). Per-file counts/totals and the Unallocated figure come from the pipeline but are cross-checked: CA flat figures + Unallocated = Tally total."
+}

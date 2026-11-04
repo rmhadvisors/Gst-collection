@@ -1,0 +1,55 @@
+{
+ "client": "Mrunmayee Developers (Maitri Heights, FY 24-25)",
+ "inputs": {
+  "tally": [
+   "hdfc 444.xlsx",
+   "idfc 47288.xlsx",
+   "idfc 5112.xlsx"
+  ],
+  "agreements": [
+   "403.pdf"
+  ],
+  "overrides": {}
+ },
+ "expected": {
+  "files": [
+   {
+    "file": "hdfc 444.xlsx",
+    "receipts": 54,
+    "total": 7799514.23
+   },
+   {
+    "file": "idfc 47288.xlsx",
+    "receipts": 10,
+    "total": 186535.9
+   },
+   {
+    "file": "idfc 5112.xlsx",
+    "receipts": 5,
+    "total": 2289900
+   }
+  ],
+  "tallyTotal": 10275950.13,
+  "unallocated": {
+   "count": 63,
+   "total": 7941150.13
+  },
+  "reconciliation": "MATCHED",
+  "sheets": [
+   "Summary",
+   "Flats",
+   "Audit",
+   "Unallocated Receipts"
+  ],
+  "warning": false,
+  "flats": {
+   "403": {
+    "agreementValue": 4490000,
+    "agreementDate": "11/12/2024",
+    "carpetArea": 48.5,
+    "totalReceived": 2334800
+   }
+  }
+ },
+ "_provenance": "files = CA-verified counts/totals (idfc 5112 5 / 22,89,900; hdfc 444 54 / 77,99,514.23; idfc 47288 10 / 1,86,535.90). Flat 403 = CA figures."
+}

@@ -49,7 +49,7 @@ async function main() {
 
   // Step 4: verify content of updated file
   const wb  = XLSX.readFile('output/rt-one-new.xlsx');
-  const ws  = wb.Sheets[wb.SheetNames.find(n => n.trim() === 'Wing B')];
+  const ws  = wb.Sheets[wb.SheetNames.find(n => ['Wing B', 'Flats'].includes(n.trim()))];
   const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
   const recs = parseWingBAoa(aoa);
   const r1804 = recs.find(r => r.flatNo === '1804');
