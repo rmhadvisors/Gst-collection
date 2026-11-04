@@ -29,6 +29,18 @@ and computes GST using the affordable-housing **45-lakh rule**.
 > (`tesseract.js`, English) on **page 1** (agreement value) and **pages 6 & 7**
 > (purchaser names — whichever page has the parties block).
 
+> **Marathi Index-II (सूची क्र.2) pages.** OCR runs with `mar+eng`; both
+> `mar.traineddata` and `eng.traineddata` must sit in the project root
+> (they are git-ignored — download `mar.traineddata` from
+> https://github.com/tesseract-ocr/tessdata_fast). Every page is parsed
+> separately: value = number after `मोबदला`, flat = `सदनिका क्र.` + wing from
+> `बी विंग`/`ए विंग`, purchaser = field 6/8, date = `दस्त नोंदणी केल्याचा दिनांक`,
+> area = `चौ.फूट` (converted to sq m). Pages giving different flats become one
+> record each. If no value can be read the flat is still written with
+> **Value Source = "manual needed"** (Audit sheet). The summary sheet is named
+> `Summary`. Flat keys are wing-normalised (`B 607`, `B-607`, `B- 607` → `B-607`);
+> name-only matches against "Capital Ac" ledgers are flagged `(review)`.
+
 ### All flats, not just the ones with an agreement
 
 The collection sheet now lists **every flat that appears in the Tally

@@ -14,7 +14,7 @@
  *  5. Returns the updated record set (original records are never mutated)
  */
 
-const { processAgreement } = require('../pdf/agreement');
+const { processAgreements } = require('../pdf/agreement');
 const { closeOcr }         = require('../pdf/ocr');
 const { buildRecord }      = require('../engine/collection');
 
@@ -37,14 +37,16 @@ async function reconcileAgreements(records, tally, agreementPaths, overrides = {
 
   const reconciled = [];
 
+  const agreements = [];
   for (const pdfPath of agreementPaths) {
-    let agreement;
     try {
-      agreement = await processAgreement(pdfPath, { workDir });
+      for (const a of await processAgreements(pdfPath, { workDir })) agreements.push({ pdfPath, agreement: a });
     } catch (err) {
       console.warn(`[reconcile] OCR failed for ${pdfPath}: ${err.message}`);
-      continue;
     }
+  }
+
+  for (const { pdfPath, agreement } of agreements) {
 
     const flatNo = String(agreement.flatNoHint || '').trim();
     if (!flatNo) {

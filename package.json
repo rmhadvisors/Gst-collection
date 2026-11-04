@@ -11,9 +11,8 @@
     "start": "node server.js",
     "preview": "node server.js",
     "cli": "node src/index.js",
-    "test": "node test/run.js"
+    "test": "node test/run.js && node test/regression.js && node test/part3.js && node test/clients.js"
   },
-
   "keywords": [
     "gst",
     "collection",
@@ -25,10 +24,13 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@napi-rs/canvas": "^1.1.0",
     "ejs": "^6.0.1",
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "multer": "^2.1.1",
+    "pdfjs-dist": "^6.5.438",
+    "sharp": "^0.35.5",
     "tesseract.js": "^7.0.0",
     "xlsx": "^0.18.5"
   }
