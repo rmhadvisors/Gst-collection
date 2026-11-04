@@ -36,7 +36,7 @@
 
 const XLSX        = require('xlsx');
 const path        = require('path');
-const { processAgreement }              = require('../pdf/agreement');
+const { processAgreements }             = require('../pdf/agreement');
 const { closeOcr }                      = require('../pdf/ocr');
 const { buildRecord }                   = require('../engine/collection');
 const { buildTallyOnlyRecords }         = require('../engine/tallyOnly');
@@ -204,7 +204,7 @@ async function updateCollectionSheet(opts) {
 
   // ── STEP 1: Read existing Wing B ──────────────────────────────────────────
   const wb = XLSX.readFile(existingPath);
-  const wingBName = wb.SheetNames.find(n => n.trim() === 'Wing B');
+  const wingBName = wb.SheetNames.find(n => ['Wing B', 'Flats'].includes(n.trim()));
   if (!wingBName) {
     throw new Error(
       `Existing file has no "Wing B" sheet.\nFound: ${wb.SheetNames.join(', ')}\n` +
@@ -233,9 +233,10 @@ async function updateCollectionSheet(opts) {
   for (const pdfPath of agreementPaths) {
     const basename = path.basename(pdfPath);
     try {
-      const agreement = await processAgreement(pdfPath, { workDir });
-      agreementObjects.push(agreement);
-      console.info(`[update] PDF OK: ${basename} → flat ${agreement.flatNoHint}`);
+      for (const agreement of await processAgreements(pdfPath, { workDir })) {
+        agreementObjects.push(agreement);
+        console.info(`[update] PDF OK: ${basename} → flat ${agreement.flatNoHint}`);
+      }
     } catch (e) {
       const msg = `Agreement could not be processed: ${basename} — ${e.message}`;
       pdfWarnings.push({ file: basename, error: e.message });
