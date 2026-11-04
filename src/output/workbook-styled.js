@@ -15,6 +15,7 @@
  */
 
 const ExcelJS = require('exceljs');
+const { wingOf } = require('../util/flatKey');
 
 // ─── Style palette ──────────────────────────────────────────────────────────
 
@@ -66,8 +67,8 @@ const WINGB_HEADERS = [
 
 const WINGB_WIDTHS = [6, 12, 10, 10, 16, 10, 18, 34, 18, 20, 18, 16, 14, 10, 20];
 
-function addWingBSheet(wb, records, projectName) {
-  const ws = wb.addWorksheet('Wing B');
+function addWingBSheet(wb, records, projectName, sheetName = 'Wing B') {
+  const ws = wb.addWorksheet(sheetName);
 
   // Column widths
   ws.columns = WINGB_WIDTHS.map(w => ({ width: w }));
@@ -196,9 +197,10 @@ const SUMMARY_HEADERS = [
 
 const SUMMARY_WIDTHS = [6, 12, 10, 16, 32, 18, 16, 14, 22, 16, 10, 14, 14, 18, 16];
 
-function addSummarySheet(wb, records, projectName) {
-  const ws = wb.addWorksheet('==');
+function addSummarySheet(wb, records, projectName, warnings = []) {
+  const ws = wb.addWorksheet('Summary');
   ws.columns = SUMMARY_WIDTHS.map(w => ({ width: w }));
+  addWarningRow(ws, warnings, SUMMARY_HEADERS.length);
 
   // Row 1: title
   {
@@ -269,17 +271,78 @@ function addSummarySheet(wb, records, projectName) {
   });
 }
 
+// ─── Reconciliation + warnings ──────────────────────────────────────────────
+
+const round2 = (n) => Math.round(n * 100) / 100;
+
+/** Tally receipts vs (flat receipts + Unallocated); null when no Tally total was supplied. */
+function reconcile(records, opts) {
+  if (!opts.reconciliation) return null;
+  const sum = (arr) => round2(arr.reduce((s, n) => s + n, 0));
+  const tallyTotal = opts.reconciliation.tallyTotal;
+  const flatTotal = sum(records.flatMap((r) => r.payments.filter((p) => p.source === 'tally').map((p) => p.amount)));
+  const unallocTotal = sum((opts.unallocated || []).map((u) => u.amount));
+  const diff = round2(tallyTotal - (flatTotal + unallocTotal));
+  // receipts typed in through overrides.json (extraPayments): not in the Tally books
+  const manual = records.flatMap((r) => r.payments
+    .filter((p) => p.source !== 'tally')
+    .map((p) => ({ flatNo: r.flatNo, dateText: p.dateText || '', amount: p.amount })));
+  const manualTotal = sum(manual.map((m) => m.amount));
+  return {
+    tallyTotal, flatTotal, unallocTotal, manual, manualTotal, diff, ok: Math.abs(diff) < 0.005,
+  };
+}
+
+const flatList = (recs) => recs.map((r) => r.flatNo).join(', ');
+
+/**
+ * Reasons the CA must look at this workbook before relying on it: flats that
+ * need a manual check, OCR failures, "(review)" matches, Tally files that gave
+ * nothing and a reconciliation that is not MATCHED.
+ */
+function collectWarnings(records, opts) {
+  const out = [];
+  const ocr = records.filter((r) => r.ocrFailed || (r.flags || []).some((f) => /OCR FAILED/.test(f)));
+  if (ocr.length) out.push(`OCR FAILED on flat(s) ${flatList(ocr)}`);
+  const review = records.filter((r) => r.needsReview || /\(review\)/.test(r.matchReason || '')
+    || (r.flags || []).some((f) => /\(review\)|— review/.test(f)));
+  if (review.length) out.push(`Name-only match (review) on flat(s) ${flatList(review)}`);
+  const manual = records.filter((r) => r.hasAgreement && r.agreementValue == null);
+  if (manual.length) out.push(`Agreement value not read - check manually: flat(s) ${flatList(manual)}`);
+  const unread = ((opts.reconciliation && opts.reconciliation.files) || []).filter((f) => !f.receipts && !f.duplicateUpload);
+  if (unread.length) out.push(`Tally file NOT READ: ${unread.map((f) => f.file).join(', ')}`);
+  const rec = reconcile(records, opts);
+  if (rec && !rec.ok) {
+    out.push(`Receipt reconciliation NOT MATCHED: difference Rs ${rec.diff.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+  }
+  return out;
+}
+
+/** Red banner as the first row of a sheet; nothing is added when there are no warnings. */
+function addWarningRow(ws, warnings, columns) {
+  if (!warnings.length) return;
+  const r = ws.addRow([`CHECK BEFORE USE: ${warnings.join('  |  ')}`]);
+  r.height = Math.max(22, 16 * Math.ceil((warnings.join('  |  ').length + 18) / (columns * 11)));
+  ws.mergeCells(r.number, 1, r.number, columns);
+  applyCell(r.getCell(1), {
+    font:      FONT_BOLD_WHITE,
+    fill:      fill('C00000'),
+    alignment: { horizontal: 'left', vertical: 'middle', wrapText: true },
+  });
+}
+
 // ─── Audit sheet ────────────────────────────────────────────────────────────
 
 const AUDIT_HEADERS = [
-  'Flat No', 'Purchaser (from agreement)', 'Agreement Value', 'Value Source',
+  'Flat No', 'Purchaser (English)', 'Purchaser (Marathi original)', 'Agreement Value', 'Value Source',
   'GST Rate', 'GST on Agreement', 'Total Received', 'Total GST on Advance',
-  'Balance', 'Tally Match', 'Match Score', 'OCR Value Candidates', 'Source PDF',
+  'Balance', 'Tally Match', 'Match Score', 'OCR Value Candidates', 'Source PDF', 'Agreement Date Source', 'Flags',
 ];
 
-function addAuditSheet(wb, records) {
+function addAuditSheet(wb, records, opts = {}) {
   const ws = wb.addWorksheet('Audit');
-  ws.columns = [10, 30, 16, 12, 10, 16, 16, 18, 16, 14, 12, 24, 28].map(w => ({ width: w }));
+  ws.columns = [10, 30, 34, 16, 12, 10, 16, 16, 18, 16, 14, 12, 24, 28, 20, 60].map(w => ({ width: w }));
+  addWarningRow(ws, opts.warnings || [], AUDIT_HEADERS.length);
 
   const hdr = ws.addRow(AUDIT_HEADERS);
   hdr.height = 20;
@@ -294,6 +357,7 @@ function addAuditSheet(wb, records) {
     const r = ws.addRow([
       rec.flatNo,
       rec.name,
+      rec.purchaserMarathi || '',
       rec.agreementValue != null ? rec.agreementValue : '',
       rec.valueSource    || '',
       rec.gstRate        != null ? `${rec.gstRate * 100}%` : '',
@@ -305,6 +369,8 @@ function addAuditSheet(wb, records) {
       rec.matchScore     != null ? Math.round(rec.matchScore * 100) / 100 : '',
       (rec.valueCandidates || []).join(', '),
       rec.pdf            || '',
+      rec.pdf ? (rec.agreementDateSource || '') : '',
+      (rec.flags || []).join('; '),
     ]);
     r.eachCell((cell, colIdx) => {
       applyCell(cell, {
@@ -312,11 +378,95 @@ function addAuditSheet(wb, records) {
         border: border('thin'),
         alignment: { vertical: 'middle' },
       });
-      if ([3, 6, 7, 8, 9].includes(colIdx)) cell.numFmt = NUMFMT;
+      if ([4, 7, 8, 9, 10].includes(colIdx)) cell.numFmt = NUMFMT;
+    });
+  });
+
+  if (opts.reconciliation) addReconciliation(ws, records, opts);
+}
+
+/**
+ * Receipt reconciliation at the bottom of the Audit sheet:
+ * Tally receipts (excl. Opening/Closing Balance) = flat receipts + Unallocated receipts.
+ */
+function addReconciliation(ws, records, opts) {
+  const {
+    tallyTotal, flatTotal, unallocTotal, manual, manualTotal, diff, ok,
+  } = reconcile(records, opts);
+
+  ws.addRow([]);
+  const title = ws.addRow(['RECEIPT RECONCILIATION']);
+  ws.mergeCells(title.number, 1, title.number, 3);
+  applyCell(title.getCell(1), { font: FONT_BOLD_WHITE, fill: fill(COLOR.HEADER_DARK), border: border('thin') });
+
+  const files = opts.reconciliation.files || [];
+  if (files.length) {
+    const head = ws.addRow(['Tally file', 'Receipts', 'Total', 'Status']);
+    head.eachCell((cell) => applyCell(cell, { font: FONT_BOLD_DARK, border: border('thin') }));
+    for (const f of files) {
+      const unread = !f.receipts && !f.duplicateUpload;
+      const fr = ws.addRow([f.file, f.receipts, f.total, f.duplicateUpload ? 'duplicate upload – ignored' : (unread ? 'NOT READ' : 'Read')]);
+      fr.eachCell((cell, i) => applyCell(cell, {
+        font: unread ? { ...FONT_BOLD_DARK, color: { argb: 'FFC00000' } } : FONT_NORMAL,
+        border: border('thin'),
+      }));
+      fr.getCell(3).numFmt = NUMFMT;
+    }
+    ws.addRow([]);
+  }
+
+  const lines = [
+    ['Total Tally receipts (excluding Opening/Closing Balance)', tallyTotal],
+    ['Sum of all flat receipts', flatTotal],
+    ['Sum of Unallocated receipts', unallocTotal],
+    ['Flat + Unallocated', Math.round((flatTotal + unallocTotal) * 100) / 100],
+  ];
+  // Manual receipts are shown on their own line so "Tally total" stays the real Tally books.
+  if (manual.length) {
+    lines.push(['Manual receipts (not in Tally) - added through overrides.json, shown in the flat sheets', manualTotal]);
+    for (const m of manual) lines.push([`      Flat ${m.flatNo}  ${m.dateText}`, m.amount]);
+  }
+  for (const [label, value] of lines) {
+    const r = ws.addRow([label, '', '', value]);
+    ws.mergeCells(r.number, 1, r.number, 3);
+    applyCell(r.getCell(1), { font: FONT_NORMAL, border: border('thin') });
+    applyCell(r.getCell(4), { font: FONT_NORMAL, border: border('thin'), numFmt: NUMFMT });
+  }
+  const result = ws.addRow(['Check', '', '', ok ? 'MATCHED' : `DIFFERENCE: ₹${diff.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+  ws.mergeCells(result.number, 1, result.number, 3);
+  applyCell(result.getCell(1), { font: FONT_BOLD_DARK, border: border('thin') });
+  applyCell(result.getCell(4), {
+    font: { ...FONT_BOLD_DARK, color: { argb: ok ? 'FF2E7D32' : 'FFC00000' } },
+    border: border('thin'),
+  });
+  if (!ok) {
+    const note = ws.addRow(['Receipts dropped by overrides (paymentCutoff / excludeVchNos) or exact duplicate rows appear here as a difference.']);
+    applyCell(note.getCell(1), { font: { ...FONT_NORMAL, italic: true } });
+  }
+}
+
+const UNALLOC_HEADERS = ['Date', 'Party', 'Vch No.', 'Amount', 'Best flat guess', 'Guess score', 'Flag'];
+
+/** Receipts with no flat number — listed for the CA to allocate by hand. */
+function addUnallocatedSheet(wb, rows) {
+  const ws = wb.addWorksheet('Unallocated Receipts');
+  ws.columns = [14, 40, 10, 16, 16, 12, 40].map(w => ({ width: w }));
+  const hdr = ws.addRow(UNALLOC_HEADERS);
+  hdr.height = 20;
+  hdr.eachCell(cell => applyCell(cell, {
+    font:      FONT_BOLD_WHITE,
+    fill:      fill(COLOR.HEADER_DARK),
+    border:    border('thin'),
+    alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+  }));
+  rows.forEach((u) => {
+    const r = ws.addRow([u.dateText, u.party, u.vchNo, u.amount, u.guess, u.guessScore, u.flag || '']);
+    r.eachCell((cell, colIdx) => {
+      applyCell(cell, { font: FONT_NORMAL, border: border('thin'), alignment: { vertical: 'middle' } });
+      if (colIdx === 4) cell.numFmt = NUMFMT;
     });
   });
 }
-
 // ─── Public writer ──────────────────────────────────────────────────────────
 
 /**
@@ -336,12 +486,25 @@ async function writeStyledCollectionWorkbook(records, outPath, opts = {}) {
   wb.created   = new Date();
   wb.modified  = new Date();
 
-  addSummarySheet(wb, records, projectName);
-  addWingBSheet(wb, records, projectName);
-  addAuditSheet(wb, records);
+  const warnings = collectWarnings(records, opts);
+  addSummarySheet(wb, records, projectName, warnings);
+  // Wing-less projects get one "Flats" sheet; multi-wing projects get one sheet per wing and wings never merge.
+  const wings = [...new Set(records.map((r) => wingOf(r.flatNo)))].filter(Boolean).sort();
+  if (wings.length > 1) {
+    for (const w of wings) {
+      addWingBSheet(wb, records.filter((r) => wingOf(r.flatNo) === w), projectName, `Wing ${w}`);
+    }
+    const noWing = records.filter((r) => !wingOf(r.flatNo));
+    if (noWing.length) addWingBSheet(wb, noWing, projectName, 'Flats');
+  } else {
+    // No default wing: a sheet is named "Wing X" only when a wing really exists.
+    addWingBSheet(wb, records, projectName, wings.length === 1 ? `Wing ${wings[0]}` : 'Flats');
+  }
+  addAuditSheet(wb, records, { ...opts, warnings });
+  if (opts.unallocated && opts.unallocated.length) addUnallocatedSheet(wb, opts.unallocated);
 
   await wb.xlsx.writeFile(outPath);
   return outPath;
 }
 
-module.exports = { writeStyledCollectionWorkbook };
+module.exports = { writeStyledCollectionWorkbook, collectWarnings, reconcile };

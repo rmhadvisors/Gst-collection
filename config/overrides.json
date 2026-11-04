@@ -1,5 +1,10 @@
 {
-  "_comment": "Per-flat manual corrections, keyed by flat number.",
+  "_comment": "Per-flat manual corrections, keyed by flat number. \"allocate\" moves Tally receipts that carry no flat number (e.g. Capital Ac) onto a flat, keyed by Vch No. \"renumber\" maps old flat numbers to new ones (Tally receipts and agreements), e.g. {\"403\": \"503\"}.",
+  "renumber": {},
+  "allocate": {
+    "81": "B-603",
+    "82": "B-603"
+  },
   "1804": {
     "agreementValue": 4490000,
     "name": "Mrs. Chhaya T. Kadam",

@@ -2,6 +2,7 @@
 
 const { floorFromFlat, floorLabel } = require('../util/text');
 const { parseDate, formatMDY } = require('../util/dates');
+const { voucherFlags } = require('./unallocated');
 
 const DEFAULT_TALLY_ONLY_GST_RATE = 0.01;
 const TALLY_ONLY_STATUS = 'Tally Only – Agreement Not Available';
@@ -70,6 +71,12 @@ function buildTallyOnlyRecord(group, override = {}, opts = {}) {
       gst: round2(p.amount * rate),
       gstRate: rate,
       vchNo: p.vchNo,
+      dupVoucher: !!p.dupVoucher,
+      noVoucher: !!p.noVoucher,
+      renumberedFrom: p.renumberedFrom || '',
+      chqReturn: !!p.chqReturn,
+      manualAllocation: !!p.manualAllocation,
+      allocatedFrom: p.allocatedFrom || '',
       source: 'tally',
     };
   });
@@ -79,7 +86,7 @@ function buildTallyOnlyRecord(group, override = {}, opts = {}) {
   const totalReceived = round2(payments.reduce((sum, p) => sum + p.amount, 0));
   const totalGst = round2(payments.reduce((sum, p) => sum + (p.gst || 0), 0));
   const floorNum = override.floorNum != null ? override.floorNum : floorFromFlat(flatNo);
-  const name = override.name || (group.nameList && group.nameList[0]) || '';
+  const name = override.name || (group.nameList && group.nameList[0]) || (group.manualNames && group.manualNames[0]) || '';
   const rates = new Set(payments.map((p) => p.gstRate));
   const displayRate = rates.size === 1 ? [...rates][0] : defaultRate;
 
@@ -90,7 +97,7 @@ function buildTallyOnlyRecord(group, override = {}, opts = {}) {
     flatType: override.flatType || '',
     carpetArea: override.carpetArea != null ? override.carpetArea : '',
     regNo: override.regNo || '',
-    agreementDate: '',
+    agreementDate: group.agmtDate ? formatMDY(group.agmtDate) : '',
     name,
     allottees: group.nameList || [],
     agreementValue: null,
@@ -106,6 +113,7 @@ function buildTallyOnlyRecord(group, override = {}, opts = {}) {
     valueSource: 'tally',
     valueCandidates: [],
     hasAgreement: false,
+    flags: voucherFlags(payments),
     status: TALLY_ONLY_STATUS,
   };
 }

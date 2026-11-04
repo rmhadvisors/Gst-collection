@@ -59,7 +59,7 @@ function buildWingB(records, projectName = DEFAULT_PROJECT) {
   return aoaToFormattedSheet(aoa, [6, 12, 10, 10, 14, 10, 16, 32, 16, 18, 16, 16, 14, 10, 18]);
 }
 
-/** Build the "==" one-row-per-flat summary sheet. */
+/** Build the "Summary" one-row-per-flat sheet. */
 function buildSummary(records, projectName = DEFAULT_PROJECT) {
   const aoa = [];
   aoa.push([`PROJECT :: ${projectName}`]);
@@ -135,7 +135,7 @@ function aoaToFormattedSheet(aoa, widths, intCols = [0]) {
 function writeCollectionWorkbook(records, outPath, opts = {}) {
   const projectName = opts.projectName || DEFAULT_PROJECT;
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, buildSummary(records, projectName), '==');
+  XLSX.utils.book_append_sheet(wb, buildSummary(records, projectName), 'Summary');
   XLSX.utils.book_append_sheet(wb, buildWingB(records, projectName), 'Wing B');
   XLSX.utils.book_append_sheet(wb, buildAudit(records), 'Audit');
   XLSX.writeFile(wb, outPath);

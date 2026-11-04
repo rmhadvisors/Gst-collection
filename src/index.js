@@ -3,18 +3,15 @@
 
 const fs = require('fs');
 const path = require('path');
-const { processAgreement } = require('./pdf/agreement');
-const { closeOcr } = require('./pdf/ocr');
-const { parseTally } = require('./tally/parse');
-const { buildRecord } = require('./engine/collection');
-const { buildTallyOnlyRecords } = require('./engine/tallyOnly');
-const { writeCollectionWorkbook } = require('./output/workbook');
+const { assertOcrReady } = require('./pdf/ocr');
+const { buildRecords, loadOverrides } = require('./services/build-records');
+const { writeStyledCollectionWorkbook } = require('./output/workbook-styled');
 
 function parseArgs(argv) {
-  const args = { agreements: [] };
+  const args = { agreements: [], tally: [] };
   for (let i = 2; i < argv.length; i += 1) {
     const a = argv[i];
-    if (a === '--tally') args.tally = argv[++i];
+    if (a === '--tally') args.tally.push(argv[++i]);
     else if (a === '--sheet') args.sheet = argv[++i];
     else if (a === '--out') args.out = argv[++i];
     else if (a === '--overrides') args.overrides = argv[++i];
@@ -34,11 +31,11 @@ collection sheet (== summary + Wing B detail) with GST computed per the
 45-lakh rule (>45L => 5%, <=45L => 1%).
 
 Usage:
-  node src/index.js --tally <tally.xlsx> [--out <out.xlsx>] <agreement1.pdf> [agreement2.pdf | folder ...]
+  node src/index.js --tally <tally.xlsx> [--tally <more.xlsx> ...] [--out <out.xlsx>] <agreement1.pdf> [agreement2.pdf | folder ...]
 
 Options:
-  --tally <file>       Tally receipts workbook (required)
-  --sheet <name>       Tally sheet name (default: first sheet)
+  --tally <file>       Tally receipts workbook (required; repeat for several books).
+                       Every sheet of every file is read.
   --out <file>         Output workbook (default: collection-output.xlsx)
   --overrides <file>   JSON of per-flat corrections (default: config/overrides.json if present)
   --keep-pages         Keep the extracted page JPEGs for inspection
@@ -65,17 +62,6 @@ function collectPdfs(inputs) {
   return pdfs;
 }
 
-function loadOverrides(file) {
-  const target = file || path.join(__dirname, '..', 'config', 'overrides.json');
-  if (!fs.existsSync(target)) return {};
-  try {
-    return JSON.parse(fs.readFileSync(target, 'utf8'));
-  } catch (e) {
-    console.warn(`! could not parse overrides ${target}: ${e.message}`);
-    return {};
-  }
-}
-
 function fmt(n) {
   if (n == null || n === '') return '';
   return n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -83,17 +69,14 @@ function fmt(n) {
 
 async function main() {
   const args = parseArgs(process.argv);
-  if (args.help || !args.tally || args.agreements.length === 0) {
+  if (args.help || !args.tally.length || args.agreements.length === 0) {
     usage();
     process.exit(args.help ? 0 : 1);
   }
 
   const outPath = args.out || 'collection-output.xlsx';
   const overrides = loadOverrides(args.overrides);
-
-  console.log(`Reading tally: ${args.tally}`);
-  const tally = parseTally(args.tally, args.sheet);
-  console.log(`  -> ${tally.rows.length} receipt rows across ${tally.byFlat.size} flats`);
+  assertOcrReady();
 
   const pdfs = collectPdfs(args.agreements);
   if (!pdfs.length) {
@@ -101,42 +84,37 @@ async function main() {
     process.exit(1);
   }
 
-  const workDir = path.join(path.dirname(outPath), '_agreement_pages');
-  const records = [];
+  const workDir = path.join(path.dirname(path.resolve(outPath)), '_agreement_pages');
+  const asFile = (p) => ({ path: p, originalname: path.basename(p) });
 
-  for (const pdf of pdfs) {
-    process.stdout.write(`Processing ${path.basename(pdf)} ... `);
-    try {
-      const agreement = await processAgreement(pdf, { workDir });
-      const ov = overrides[agreement.flatNoHint] || {};
-      const rec = buildRecord(agreement, tally, ov);
-      rec.pdf = agreement.pdf;
-      records.push(rec);
-      console.log(
-        `flat ${rec.flatNo} | ${rec.name} | agr ${fmt(rec.agreementValue)} `
-        + `| GST@${rec.gstRate * 100}% ${fmt(rec.gstOnAgreement)} | recd ${fmt(rec.totalReceived)} `
-        + `| bal ${fmt(rec.balance)} [${rec.matchReason}]`,
-      );
-    } catch (e) {
-      console.log(`FAILED: ${e.message}`);
-    }
+  // Same pipeline and same workbook as the web upload.
+  const {
+    records, tally, unallocated, tallyTotal, tallyFiles,
+  } = await buildRecords({
+    tallyFiles: args.tally.map(asFile),
+    agreementFiles: pdfs.map(asFile),
+    overrides,
+    workDir,
+    onProgress: (msg) => console.log(msg),
+  });
+
+  for (const f of tallyFiles) {
+    const note = f.duplicateUpload ? 'duplicate upload - ignored' : (f.receipts ? '' : 'NOT READ');
+    console.log(`Tally ${f.file}: ${f.receipts} receipts, ${fmt(f.total)} ${note}`.trim());
+  }
+  for (const rec of records.filter((r) => r.hasAgreement)) {
+    console.log(
+      `flat ${rec.flatNo} | ${rec.name} | agr ${fmt(rec.agreementValue)} [${rec.valueSource}] `
+      + `| GST@${rec.gstRate * 100}% ${fmt(rec.gstOnAgreement)} | recd ${fmt(rec.totalReceived)} `
+      + `| bal ${fmt(rec.balance)} [${rec.matchReason}]`,
+    );
   }
 
-  await closeOcr();
-
-  // Include every other flat present in the Tally receipts (no agreement yet):
-  // their receipts are listed with GST computed at the default 1% rate.
-  const matched = new Set(records.map((r) => r.flatNo));
-  const tallyOnly = buildTallyOnlyRecords(tally, matched, overrides, {});
-  if (tallyOnly.length) {
-    console.log(`Adding ${tallyOnly.length} flat(s) from Tally without an agreement (GST @ 1% default)`);
-    records.push(...tallyOnly);
-  }
-
-  // sort records by flat number for a tidy sheet
-  records.sort((a, b) => Number(a.flatNo) - Number(b.flatNo));
-
-  writeCollectionWorkbook(records, outPath, { projectName: tally.projectName || undefined });
+  await writeStyledCollectionWorkbook(records, outPath, {
+    projectName: tally.projectName || undefined,
+    unallocated,
+    reconciliation: { tallyTotal, files: tallyFiles },
+  });
   console.log(`\nWrote ${records.length} flat(s) to: ${outPath}`);
 
   if (!args.keepPages) {
