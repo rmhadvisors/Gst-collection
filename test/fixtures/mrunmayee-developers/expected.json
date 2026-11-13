@@ -9,7 +9,25 @@
   "agreements": [
    "403.pdf"
   ],
-  "overrides": {}
+  "overrides": {
+   "buildings": {
+    "Maitri Heights": [
+     "मैत्री हाईट्स",
+     "maitri"
+    ],
+    "Siddhivinayak Palace": [
+     "सिद्धिविनायक पॅलेस",
+     "siddhivinayak"
+    ]
+   },
+   "books": {
+    "idfc 5112.xlsx": "Maitri Heights",
+    "idfc 47288.xlsx": "Maitri Heights"
+   },
+   "partners": [
+    "Narayan Lakhu Mankar"
+   ]
+  }
  },
  "expected": {
   "files": [
@@ -37,19 +55,74 @@
   "reconciliation": "MATCHED",
   "sheets": [
    "Summary",
-   "Flats",
-   "Audit",
-   "Unallocated Receipts"
+   "Maitri Heights",
+   "Audit"
   ],
   "warning": false,
   "flats": {
    "403": {
+    "building": "Maitri Heights",
     "agreementValue": 4490000,
     "agreementDate": "11/12/2024",
     "carpetArea": 48.5,
-    "totalReceived": 2334800
+    "regNo": "4611/2024",
+    "marketValue": 3649500,
+    "payDates": [
+     "16/08/2024",
+     "21/08/2024",
+     "26/08/2024",
+     "27/12/2024",
+     "04/01/2025",
+     "23/01/2025"
+    ],
+    "totalReceived": 2334800,
+    "baseReceived": 2289900,
+    "gstReceived": 44900,
+    "gstOutstanding": 0,
+    "osAmount": 2200100,
+    "balance": 2200100
+   }
+  },
+  "summary": {
+   "Maitri Heights|403": {
+    "advances": 2289900,
+    "osAmount": 2200100,
+    "gstPaid": 44900,
+    "advForm3": 2289900,
+    "outstanding": 2200100,
+    "regNo": "4611/2024",
+    "marketValue": 3649500,
+    "agreementDateIsExcelDate": true
+   }
+  },
+  "dateCells": {
+   "notRealDates": 0
+  },
+  "mainSheetTotal": 10275950.13,
+  "noFlat": {
+   "parties": [
+    "Jai Hemant Patil",
+    "Bhumik Hemant Patil",
+    "Narayan Lakhu Mankar",
+    "Priyanka Kalpesh Mankar",
+    "H P Enterprises",
+    "CHQ RETURN"
+   ],
+   "gstBlank": {
+    "BHUMIK HEMANT PATIL": true,
+    "Narayan Lakhu Mankar": true,
+    "CHQ RETURN": true,
+    "Jai Hemant Patil": false,
+    "H P Enterprises": false,
+    "Priyanka Kalpesh Mankar": false
+   },
+   "flags": {
+    "BHUMIK HEMANT PATIL": "partner",
+    "Narayan Lakhu Mankar": "partner",
+    "CHQ RETURN": "CHQ RETURN",
+    "Jai Hemant Patil": "no flat no."
    }
   }
  },
- "_provenance": "files = CA-verified counts/totals (idfc 5112 5 / 22,89,900; hdfc 444 54 / 77,99,514.23; idfc 47288 10 / 1,86,535.90). Flat 403 = CA figures."
+ "_provenance": "files = CA-verified counts/totals (idfc 5112 5 / 22,89,900; hdfc 444 54 / 77,99,514.23; idfc 47288 10 / 1,86,535.90). Flat 403 = the CA's figures (value 44,90,000, 11/12/2024, carpet 48.50, reg 4611/2024, market value 36,49,500, receipts 16/08/2024 ... 23/01/2025, base 22,89,900 + GST 44,900). Building settings: hdfc 444 names Siddhivinayak in its title; the IDFC books are set in inputs.overrides.books."
 }

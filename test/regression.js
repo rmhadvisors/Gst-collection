@@ -16,6 +16,7 @@ const { processAgreements } = require('../src/pdf/agreement');
 const { closeOcr } = require('../src/pdf/ocr');
 const { buildTallyOnlyRecords } = require('../src/engine/tallyOnly');
 const { buildUnallocated } = require('../src/engine/unallocated');
+const { buildNoFlatRecords } = require('../src/engine/noFlat');
 const { writeStyledCollectionWorkbook } = require('../src/output/workbook-styled');
 const { parseFlatFromParticulars } = require('../src/util/flatKey');
 const { extractAgreementValue } = require('../src/pdf/agreement');
@@ -211,9 +212,9 @@ ok('5. allocating a voucher that is not in Tally is reported and nothing moves',
     const records = [buildRecord(agr('B-603'), t, {}), buildRecord(agr('B-607'), t, {})];
     const matched = new Set(records.flatMap((r) => [r.flatNo, r.tallyFlat].filter(Boolean)));
     records.push(...buildTallyOnlyRecords(t, matched, {}, {}));
-    const unallocated = buildUnallocated(t, records);
+    records.push(...buildNoFlatRecords(t, { records }));
     const out = path.join(os.tmpdir(), `bom-${Date.now()}.xlsx`);
-    const opts = { projectName: 'M', unallocated, reconciliation: { tallyTotal: totalReceipts(t) } };
+    const opts = { projectName: 'M', reconciliation: { tallyTotal: totalReceipts(t) } };
     await writeStyledCollectionWorkbook(records, out, opts);
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.readFile(out);
@@ -229,7 +230,8 @@ ok('5. allocating a voucher that is not in Tally is reported and nothing moves',
     assert.ok(/GST receipt/.test(rows.find((r) => r[0] === 'B-607')[header.indexOf('Flags')]));
     assert.strictEqual(rows[rows.length - 1][3], 'MATCHED');
     assert.strictEqual(rows.find((r) => /Total Tally receipts/.test(String(r[0])))[3], totalReceipts(t));
-    assert.strictEqual(wb.getWorksheet('Unallocated Receipts').rowCount - 1, t.unallocated.length);
+    assert.ok(!wb.getWorksheet('Unallocated Receipts'), 'no separate Unallocated sheet');
+    assert.strictEqual(records.filter((r) => r.noFlat).flatMap((r) => r.payments).length, t.unallocated.length); // all on the main sheet
 
     records[0].payments.pop(); // a receipt goes missing -> DIFFERENCE in red
     await writeStyledCollectionWorkbook(records, out, opts);
@@ -243,17 +245,21 @@ ok('5. allocating a voucher that is not in Tally is reported and nothing moves',
     assert.strictEqual(diffCell.font.color.argb, 'FFC00000');
   });
 
-  await okAsync('multi-wing workbook: Wing A + Wing B + Unallocated Receipts + Audit flags', async () => {
+  await okAsync('multi-wing workbook: Wing A + Wing B + Audit; no-flat parties on the first sheet', async () => {
     const records = buildTallyOnlyRecords(mahira, [], {}, {});
     const out = path.join(os.tmpdir(), `mahira-${Date.now()}.xlsx`);
-    await writeStyledCollectionWorkbook(records, out, { projectName: 'T', unallocated: buildUnallocated(mahira, records) });
+    records.push(...buildNoFlatRecords(mahira, { records }));
+    await writeStyledCollectionWorkbook(records, out, { projectName: 'T' });
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.readFile(out);
     fs.unlinkSync(out);
     const names = wb.worksheets.map((w) => w.name);
-    for (const n of ['Summary', 'Wing A', 'Wing B', 'Audit', 'Unallocated Receipts']) assert.ok(names.includes(n), n);
+    for (const n of ['Summary', 'Wing A', 'Wing B', 'Audit']) assert.ok(names.includes(n), n);
     assert.ok(!names.includes('=='));
-    assert.strictEqual(wb.getWorksheet('Unallocated Receipts').rowCount - 1, mahira.unallocated.length);
+    assert.ok(!names.includes('Unallocated Receipts'));
+    const partyRows = [];
+    wb.getWorksheet('Wing A').eachRow((r) => { if (r.getCell(11).value === 'TOTAL ::' && !r.getCell(3).value) partyRows.push(r.getCell(8).value); });
+    assert.strictEqual(partyRows.length, new Set(mahira.unallocated.map((r) => r.name)).size, 'one block per party, below the flats');
   });
   await okAsync('single-wing/wing-less project gets one "Flats" sheet (no default wing)', async () => {
     const t = parseTally(S('tally receipts.xlsx'));

@@ -24,6 +24,7 @@ const COLOR = {
   HEADER_MID:    '2E75B6',  // medium blue     — section / column headers
   FLAT_ROW:      'FFD966',  // golden yellow   — flat TOTAL :: rows
   TALLY_ONLY:    'DEEBF7',  // pale blue       — tally-only flat rows
+  NO_FLAT:       'FCE4D6',  // pale orange     — parties with no flat number
   PAYMENT_ODD:   'FFFFFF',  // white           — payment rows (odd)
   PAYMENT_EVEN:  'F5F5F5',  // very light grey — payment rows (even)
   TOTALS_ROW:    'E2EFDA',  // light green     — grand-total rows
@@ -39,6 +40,19 @@ const FONT_TITLE        = { name: 'Calibri', size: 13, bold: true, color: { argb
 
 const NUMFMT  = '#,##0.00';
 const NUMFMT0 = '#,##0';
+const DATEFMT = 'dd/mm/yyyy';
+
+/**
+ * A JS Date as an Excel date. ExcelJS stores dates as UTC, so the local calendar
+ * day is written at UTC midnight (otherwise IST dates land one day early).
+ */
+function excelDate(d) {
+  return d instanceof Date && !Number.isNaN(d.getTime())
+    ? new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())) : null;
+}
+const dateCell = (d, fallbackText) => excelDate(d) || fallbackText || '';
+const ddmmyyyy = (d) => (d instanceof Date && !Number.isNaN(d.getTime())
+  ? `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}` : '');
 
 function fill(argbHex) {
   return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + argbHex } };
@@ -122,7 +136,7 @@ function addWingBSheet(wb, records, projectName, sheetName = 'Wing B') {
   // ── Data rows ──
   records.forEach((rec, idx) => {
     const isAgreement = rec.hasAgreement;
-    const rowFill = isAgreement ? fill(COLOR.FLAT_ROW) : fill(COLOR.TALLY_ONLY);
+    const rowFill = rec.noFlat ? fill(COLOR.NO_FLAT) : (isAgreement ? fill(COLOR.FLAT_ROW) : fill(COLOR.TALLY_ONLY));
 
     // Flat header row (TOTAL ::)
     const headerData = [
@@ -132,7 +146,7 @@ function addWingBSheet(wb, records, projectName, sheetName = 'Wing B') {
       rec.flatType   || '',
       rec.carpetArea != null && rec.carpetArea !== '' ? rec.carpetArea : '',
       rec.regNo      || '',
-      rec.agreementDate || '',
+      dateCell(rec.agreementDateObj, rec.agreementDate),
       rec.name       || '',
       rec.agreementValue   != null ? rec.agreementValue   : '',
       rec.gstOnAgreement   != null ? rec.gstOnAgreement   : '',
@@ -156,6 +170,7 @@ function addWingBSheet(wb, records, projectName, sheetName = 'Wing B') {
       if ([9, 10, 12, 13].includes(colIdx)) {
         cell.numFmt = NUMFMT;
       }
+      if (colIdx === 7 && cell.value instanceof Date) cell.numFmt = DATEFMT;
     });
 
     // Payment rows
@@ -163,7 +178,7 @@ function addWingBSheet(wb, records, projectName, sheetName = 'Wing B') {
       const payFill = pi % 2 === 0 ? fill(COLOR.PAYMENT_ODD) : fill(COLOR.PAYMENT_EVEN);
       const payData = [
         '', '', '', '', '', '', '', '', '', '',
-        p.dateText || '',
+        dateCell(p.date, p.dateText),
         p.amount   != null ? p.amount : '',
         p.gst      != null ? p.gst    : '',
         '',
@@ -179,6 +194,7 @@ function addWingBSheet(wb, records, projectName, sheetName = 'Wing B') {
           alignment: { horizontal: colIdx >= 12 ? 'right' : 'left', vertical: 'middle' },
         });
         if ([12, 13].includes(colIdx)) cell.numFmt = NUMFMT;
+        if (colIdx === 11 && cell.value instanceof Date) cell.numFmt = DATEFMT;
       });
     });
 
@@ -193,9 +209,16 @@ const SUMMARY_HEADERS = [
   'SR.NO', 'FLOOR', 'SHOP NO.', 'RERA CARPET AREA (Sqmt)', 'PARTY NAME',
   'DATE OF AGREEMENT', 'AGREEMENT', 'GST', 'AGREEMENT VALUE (WITH GST)',
   'ADVANCES', 'TDS', 'O/S AMOUNT', 'GST PAID', 'Adv Rec for Form-3', 'Outstanding',
+  'REG. NO.', 'MARKET VALUE', 'BUILDING',
 ];
 
-const SUMMARY_WIDTHS = [6, 12, 10, 16, 32, 18, 16, 14, 22, 16, 10, 14, 14, 18, 16];
+const SUMMARY_WIDTHS = [6, 12, 10, 16, 32, 18, 16, 14, 22, 16, 10, 14, 14, 18, 16, 14, 16, 22];
+
+/** Base advances: receipts less any GST receipt (records from older flows have no split). */
+const baseOf = (rec) => (rec.baseReceived != null ? rec.baseReceived : rec.totalReceived != null ? rec.totalReceived : '');
+
+/** Excel sheet names: at most 31 characters and none of []:*?/\\. */
+const sheetName = (s) => String(s).replace(/[[\]:*?/\\]/g, ' ').trim().slice(0, 31) || 'Flats';
 
 function addSummarySheet(wb, records, projectName, warnings = []) {
   const ws = wb.addWorksheet('Summary');
@@ -240,23 +263,27 @@ function addSummarySheet(wb, records, projectName, warnings = []) {
 
   // Data rows
   records.forEach((rec, idx) => {
-    const rowFill = rec.hasAgreement ? fill(COLOR.PAYMENT_ODD) : fill(COLOR.TALLY_ONLY);
+    const rowFill = rec.noFlat ? fill(COLOR.NO_FLAT) : (rec.hasAgreement ? fill(COLOR.PAYMENT_ODD) : fill(COLOR.TALLY_ONLY));
     const r = ws.addRow([
       idx + 1,
       rec.floorLabel    || '',
       rec.flatNo,
       rec.carpetArea    != null && rec.carpetArea !== '' ? rec.carpetArea : '',
       rec.name          || '',
-      rec.agreementDate || '',
+      dateCell(rec.agreementDateObj, rec.agreementDate),
       rec.agreementValue         != null ? rec.agreementValue         : '',
       rec.gstOnAgreement         != null ? rec.gstOnAgreement         : '',
       rec.agreementValueWithGst  != null ? rec.agreementValueWithGst  : '',
-      rec.totalReceived          != null ? rec.totalReceived          : '',
+      // ADVANCES = base advances; the GST receipt is shown apart, under GST PAID
+      baseOf(rec),
       '',
-      '',
-      rec.totalGst               != null ? rec.totalGst               : '',
-      '',
+      rec.osAmount               != null ? rec.osAmount               : '',
+      rec.hasAgreement ? (rec.gstReceived || 0) : '',
+      rec.hasAgreement ? baseOf(rec) : '',
       rec.balance                != null ? rec.balance                : '',
+      rec.regNo                  || '',
+      rec.marketValue            != null ? rec.marketValue            : '',
+      rec.building               || '',
     ]);
     r.height = 15;
     r.eachCell((cell, colIdx) => {
@@ -266,7 +293,8 @@ function addSummarySheet(wb, records, projectName, warnings = []) {
         border: border('thin'),
         alignment: { horizontal: colIdx >= 7 ? 'right' : 'left', vertical: 'middle' },
       });
-      if ([7, 8, 9, 10, 13, 15].includes(colIdx)) cell.numFmt = NUMFMT;
+      if ([7, 8, 9, 10, 12, 13, 14, 15, 17].includes(colIdx)) cell.numFmt = NUMFMT;
+      if (colIdx === 6 && cell.value instanceof Date) cell.numFmt = DATEFMT;
     });
   });
 }
@@ -275,18 +303,19 @@ function addSummarySheet(wb, records, projectName, warnings = []) {
 
 const round2 = (n) => Math.round(n * 100) / 100;
 
-/** Tally receipts vs (flat receipts + Unallocated); null when no Tally total was supplied. */
+/** Tally receipts vs (flat receipts + receipts without a flat no.); null when no Tally total was supplied. */
 function reconcile(records, opts) {
   if (!opts.reconciliation) return null;
   const sum = (arr) => round2(arr.reduce((s, n) => s + n, 0));
   const tallyTotal = opts.reconciliation.tallyTotal;
-  const flatTotal = sum(records.flatMap((r) => r.payments.filter((p) => p.source === 'tally').map((p) => p.amount)));
-  const unallocTotal = sum((opts.unallocated || []).map((u) => u.amount));
+  const tallyAmounts = (recs) => recs.flatMap((r) => r.payments.filter((p) => p.source === 'tally').map((p) => p.amount));
+  const flatTotal = sum(tallyAmounts(records.filter((r) => !r.noFlat)));
+  const unallocTotal = sum(tallyAmounts(records.filter((r) => r.noFlat))); // receipts without a flat no.
   const diff = round2(tallyTotal - (flatTotal + unallocTotal));
   // receipts typed in through overrides.json (extraPayments): not in the Tally books
   const manual = records.flatMap((r) => r.payments
     .filter((p) => p.source !== 'tally')
-    .map((p) => ({ flatNo: r.flatNo, dateText: p.dateText || '', amount: p.amount })));
+    .map((p) => ({ flatNo: r.flatNo, dateText: ddmmyyyy(p.date) || p.dateText || '', amount: p.amount })));
   const manualTotal = sum(manual.map((m) => m.amount));
   return {
     tallyTotal, flatTotal, unallocTotal, manual, manualTotal, diff, ok: Math.abs(diff) < 0.005,
@@ -307,7 +336,7 @@ function collectWarnings(records, opts) {
   const review = records.filter((r) => r.needsReview || /\(review\)/.test(r.matchReason || '')
     || (r.flags || []).some((f) => /\(review\)|— review/.test(f)));
   if (review.length) out.push(`Name-only match (review) on flat(s) ${flatList(review)}`);
-  const manual = records.filter((r) => r.hasAgreement && r.agreementValue == null);
+  const manual = records.filter((r) => r.needsManual || (r.hasAgreement && r.agreementValue == null));
   if (manual.length) out.push(`Agreement value not read - check manually: flat(s) ${flatList(manual)}`);
   const unread = ((opts.reconciliation && opts.reconciliation.files) || []).filter((f) => !f.receipts && !f.duplicateUpload);
   if (unread.length) out.push(`Tally file NOT READ: ${unread.map((f) => f.file).join(', ')}`);
@@ -337,11 +366,12 @@ const AUDIT_HEADERS = [
   'Flat No', 'Purchaser (English)', 'Purchaser (Marathi original)', 'Agreement Value', 'Value Source',
   'GST Rate', 'GST on Agreement', 'Total Received', 'Total GST on Advance',
   'Balance', 'Tally Match', 'Match Score', 'OCR Value Candidates', 'Source PDF', 'Agreement Date Source', 'Flags',
+  'Building', 'Document type', 'Market value', 'Reg. no.', 'Base received', 'GST received', 'GST outstanding',
 ];
 
 function addAuditSheet(wb, records, opts = {}) {
   const ws = wb.addWorksheet('Audit');
-  ws.columns = [10, 30, 34, 16, 12, 10, 16, 16, 18, 16, 14, 12, 24, 28, 20, 60].map(w => ({ width: w }));
+  ws.columns = [10, 30, 34, 16, 12, 10, 16, 16, 18, 16, 14, 12, 24, 28, 20, 60, 20, 24, 16, 14, 16, 16, 16].map(w => ({ width: w }));
   addWarningRow(ws, opts.warnings || [], AUDIT_HEADERS.length);
 
   const hdr = ws.addRow(AUDIT_HEADERS);
@@ -371,6 +401,13 @@ function addAuditSheet(wb, records, opts = {}) {
       rec.pdf            || '',
       rec.pdf ? (rec.agreementDateSource || '') : '',
       (rec.flags || []).join('; '),
+      rec.building || '',
+      rec.noFlat ? 'No flat no.' : (rec.docType === 'alternate' ? 'Alternate accommodation' : (rec.hasAgreement ? 'Agreement' : 'Tally only')),
+      rec.marketValue != null ? rec.marketValue : '',
+      rec.regNo || '',
+      rec.hasAgreement ? baseOf(rec) : '',
+      rec.hasAgreement ? (rec.gstReceived || 0) : '',
+      rec.gstOutstanding != null ? rec.gstOutstanding : '',
     ]);
     r.eachCell((cell, colIdx) => {
       applyCell(cell, {
@@ -378,7 +415,7 @@ function addAuditSheet(wb, records, opts = {}) {
         border: border('thin'),
         alignment: { vertical: 'middle' },
       });
-      if ([4, 7, 8, 9, 10].includes(colIdx)) cell.numFmt = NUMFMT;
+      if ([4, 7, 8, 9, 10, 19, 21, 22, 23].includes(colIdx)) cell.numFmt = NUMFMT;
     });
   });
 
@@ -387,7 +424,7 @@ function addAuditSheet(wb, records, opts = {}) {
 
 /**
  * Receipt reconciliation at the bottom of the Audit sheet:
- * Tally receipts (excl. Opening/Closing Balance) = flat receipts + Unallocated receipts.
+ * Tally receipts (excl. Opening/Closing Balance) = flat receipts + receipts without a flat no.
  */
 function addReconciliation(ws, records, opts) {
   const {
@@ -418,8 +455,8 @@ function addReconciliation(ws, records, opts) {
   const lines = [
     ['Total Tally receipts (excluding Opening/Closing Balance)', tallyTotal],
     ['Sum of all flat receipts', flatTotal],
-    ['Sum of Unallocated receipts', unallocTotal],
-    ['Flat + Unallocated', Math.round((flatTotal + unallocTotal) * 100) / 100],
+    ['Sum of receipts without flat no.', unallocTotal],
+    ['Flats + receipts without flat no.', Math.round((flatTotal + unallocTotal) * 100) / 100],
   ];
   // Manual receipts are shown on their own line so "Tally total" stays the real Tally books.
   if (manual.length) {
@@ -445,28 +482,6 @@ function addReconciliation(ws, records, opts) {
   }
 }
 
-const UNALLOC_HEADERS = ['Date', 'Party', 'Vch No.', 'Amount', 'Best flat guess', 'Guess score', 'Flag'];
-
-/** Receipts with no flat number — listed for the CA to allocate by hand. */
-function addUnallocatedSheet(wb, rows) {
-  const ws = wb.addWorksheet('Unallocated Receipts');
-  ws.columns = [14, 40, 10, 16, 16, 12, 40].map(w => ({ width: w }));
-  const hdr = ws.addRow(UNALLOC_HEADERS);
-  hdr.height = 20;
-  hdr.eachCell(cell => applyCell(cell, {
-    font:      FONT_BOLD_WHITE,
-    fill:      fill(COLOR.HEADER_DARK),
-    border:    border('thin'),
-    alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
-  }));
-  rows.forEach((u) => {
-    const r = ws.addRow([u.dateText, u.party, u.vchNo, u.amount, u.guess, u.guessScore, u.flag || '']);
-    r.eachCell((cell, colIdx) => {
-      applyCell(cell, { font: FONT_NORMAL, border: border('thin'), alignment: { vertical: 'middle' } });
-      if (colIdx === 4) cell.numFmt = NUMFMT;
-    });
-  });
-}
 // ─── Public writer ──────────────────────────────────────────────────────────
 
 /**
@@ -489,19 +504,29 @@ async function writeStyledCollectionWorkbook(records, outPath, opts = {}) {
   const warnings = collectWarnings(records, opts);
   addSummarySheet(wb, records, projectName, warnings);
   // Wing-less projects get one "Flats" sheet; multi-wing projects get one sheet per wing and wings never merge.
-  const wings = [...new Set(records.map((r) => wingOf(r.flatNo)))].filter(Boolean).sort();
-  if (wings.length > 1) {
-    for (const w of wings) {
-      addWingBSheet(wb, records.filter((r) => wingOf(r.flatNo) === w), projectName, `Wing ${w}`);
-    }
-    const noWing = records.filter((r) => !wingOf(r.flatNo));
-    if (noWing.length) addWingBSheet(wb, noWing, projectName, 'Flats');
+  // Receipts without a flat no. are printed below the flats of the first detail sheet.
+  const noFlat = records.filter((r) => r.noFlat);
+  const flatRecs = records.filter((r) => !r.noFlat);
+  const buildings = [...new Set(flatRecs.map((r) => r.building))].filter(Boolean).sort();
+  const wings = [...new Set(flatRecs.map((r) => wingOf(r.flatNo)))].filter(Boolean).sort();
+  const sheets = []; // [name, records]
+  if (buildings.length) {
+    // Maitri Heights 403 and Siddhivinayak Palace 403 are different flats: one sheet each
+    for (const b of buildings) sheets.push([sheetName(b), flatRecs.filter((r) => r.building === b)]);
+    const noBuilding = flatRecs.filter((r) => !r.building);
+    if (noBuilding.length) sheets.push(['Flats', noBuilding]);
+  } else if (wings.length > 1) {
+    for (const w of wings) sheets.push([`Wing ${w}`, flatRecs.filter((r) => wingOf(r.flatNo) === w)]);
+    const noWing = flatRecs.filter((r) => !wingOf(r.flatNo));
+    if (noWing.length) sheets.push(['Flats', noWing]);
   } else {
     // No default wing: a sheet is named "Wing X" only when a wing really exists.
-    addWingBSheet(wb, records, projectName, wings.length === 1 ? `Wing ${wings[0]}` : 'Flats');
+    sheets.push([wings.length === 1 ? `Wing ${wings[0]}` : 'Flats', flatRecs]);
   }
+  if (!sheets.length) sheets.push(['Flats', []]);
+  sheets[0][1] = [...sheets[0][1], ...noFlat];
+  for (const [name, recs] of sheets) addWingBSheet(wb, recs, projectName, name);
   addAuditSheet(wb, records, { ...opts, warnings });
-  if (opts.unallocated && opts.unallocated.length) addUnallocatedSheet(wb, opts.unallocated);
 
   await wb.xlsx.writeFile(outPath);
   return outPath;

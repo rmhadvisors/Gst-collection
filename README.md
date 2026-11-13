@@ -41,6 +41,40 @@ and computes GST using the affordable-housing **45-lakh rule**.
 > `Summary`. Flat keys are wing-normalised (`B 607`, `B-607`, `B- 607` → `B-607`);
 > name-only matches against "Capital Ac" ledgers are flagged `(review)`.
 
+### Photos, buildings, shops and alternate accommodation
+
+* **Photos.** An agreement can be a `.pdf`, `.jpg`, `.jpeg` or `.png` (a phone photo of one
+  Index-II page). A photo is one page of the same OCR pipeline (rotated, contrast-stretched, scaled up).
+* **Buildings.** The building is read from the Index-II text ("इमारत मैत्री हाईट्स मधील सदनिका क्र. 602")
+  and flats are keyed *building + flat*, so Maitri Heights 403 and Siddhivinayak Palace 403 never merge.
+  For Tally, a book's building comes from its title when that names one ("... Siddhivinayak Palace Book") or
+  from `config/overrides.json`: `"buildings"` gives each building its English name and the spellings it has
+  (Marathi / English), `"books"` names the building of a book that does not say it
+  (`{"idfc 5112.xlsx": "Maitri Heights"}`). Buildings are only used when some book has one or the agreements
+  name two. In that mode a receipt whose book has no building is placed by rule: the flat number exists
+  in only one building -> that building; in several -> flat + name (>= 0.85) + AGMT DT must equal the agreement
+  (Audit says "allocated by flat+name+date"); otherwise it is listed with the parties that have no flat no. A flat in two buildings is allocated with `"Maitri Heights|403"`.
+  Each building gets its own sheet.
+* **Receipts without a flat number** have no separate sheet: every Tally receipt is on the main sheet. They are
+  printed below the flats, one block per party (largest total first; "TOTAL ::" row, then each receipt), and
+  as rows in Summary, so the Summary total equals the Tally total. GST is 1% like a flat, flagged
+  *no flat no. – assign flat to confirm*. Partners of the developer (Index-II field 7, after "भागीदार", or
+  `"partners": [...]` in overrides.json) are shown with GST blank, flagged *partner – check if flat booking or
+  capital*; set `"partnerGst": "1%"` in overrides.json once the CA confirms they are flat bookings. `CHQ RETURN`
+  receipts form their own party with no GST. `"allocate"` moves a voucher from its party block into a flat.
+* **पर्यायी जागेचा करार** (alternate accommodation): the consideration is 0, so GST is on the
+  बाजारभाव (market value), flagged *alternate accommodation – GST on market value*. A market value of 1
+  (or one that cannot be read) calculates no GST and says *check manually*.
+* **Shops** (दुकान / गाळा / शॉप) are keyed `Shop-1` and taxed at 5%, flagged *commercial – confirm rate*.
+* **Dates** are Indian (dd/mm/yyyy) and are real Excel dates in the workbook.
+* **GST receipt.** A receipt equal to the GST on the agreement is shown apart from the base advances:
+  Summary *GST PAID* = GST received, *O/S AMOUNT* = agreement value − base advances, *Adv Rec for Form-3* =
+  base advances, plus *REG. NO.*, *MARKET VALUE* and *BUILDING*.
+* **Web jobs.** Uploads run as background jobs (`/job/:id`): one at a time, each with a time limit
+  (`JOB_TIMEOUT_MS`, default 30 min) and an OCR call limit (`OCR_CALL_TIMEOUT_MS`, default 4 min, one
+  retry on a fresh worker). A job always ends as `done` or `failed` with the reason; every step is logged
+  with the job id and the OCR worker state.
+
 ### All flats, not just the ones with an agreement
 
 The collection sheet now lists **every flat that appears in the Tally

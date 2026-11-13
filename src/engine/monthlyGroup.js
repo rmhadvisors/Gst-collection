@@ -87,12 +87,55 @@ function groupByMonth(records) {
     return months.get(key);
   }
 
+  // Add one receipt to the advances section of the month it was paid in.
+  function addAdvance(rec, p) {
+    const pMonth = monthKey(p.date);
+    if (!pMonth) return;
+    const monthData = ensureMonth(pMonth);
+
+    // Find or create an advance entry for this flat/party in this month
+    let entry = monthData.advances.find((a) => a.flatNo === rec.flatNo && a.name === rec.name);
+    if (!entry) {
+      entry = {
+        flatNo: rec.flatNo,
+        name: rec.name,
+        amountThisMonth1pct: 0,
+        gst1pct: 0,
+        amountThisMonth5pct: 0,
+        gst5pct: 0,
+      };
+      monthData.advances.push(entry);
+    }
+
+    const rate = p.gstRate != null ? p.gstRate : 0.01;
+    const gst = p.gst != null ? p.gst : round2(p.amount * rate);
+    if (rate <= 0.01) {
+      entry.amountThisMonth1pct = round2(entry.amountThisMonth1pct + p.amount);
+      entry.gst1pct = round2(entry.gst1pct + gst);
+    } else {
+      entry.amountThisMonth5pct = round2(entry.amountThisMonth5pct + p.amount);
+      entry.gst5pct = round2(entry.gst5pct + gst);
+    }
+  }
+
   for (const rec of records) {
     if (rec.hasAgreement) {
       // ── Agreement flat (Case 1 or 2) ───────────────────────────────────────
       // The entry goes into the month when the agreement was executed.
       const agrMonth = monthKey(rec.agreementDateObj);
-      if (!agrMonth) continue; // no date — skip from working sheet
+      if (!agrMonth) {
+        // Agreement date unknown: still report every receipt in the month it was paid.
+        for (const p of rec.payments) if (!p.gstReceipt) addAdvance(rec, p);
+        continue;
+      }
+
+      // Receipts paid before the agreement are advances: taxed in the month they
+      // were paid (the agreement month reverses this GST via reverseGstOnAdvances).
+      for (const p of rec.payments) {
+        if (!p.gstReceipt && p.date && monthKey(p.date) && p.date < rec.agreementDateObj) {
+          addAdvance(rec, { ...p, gstRate: p.gstRate != null ? p.gstRate : 0.01, gst: null });
+        }
+      }
 
       const monthData = ensureMonth(agrMonth);
 
@@ -120,34 +163,7 @@ function groupByMonth(records) {
     } else {
       // ── Tally-only flat (Case 3) ────────────────────────────────────────────
       // Each payment goes into its own month bucket.
-      for (const p of rec.payments) {
-        const pMonth = monthKey(p.date);
-        if (!pMonth) continue;
-        const monthData = ensureMonth(pMonth);
-
-        // Find or create an advance entry for this flat in this month
-        let entry = monthData.advances.find((a) => a.flatNo === rec.flatNo);
-        if (!entry) {
-          entry = {
-            flatNo: rec.flatNo,
-            name: rec.name,
-            amountThisMonth1pct: 0,
-            gst1pct: 0,
-            amountThisMonth5pct: 0,
-            gst5pct: 0,
-          };
-          monthData.advances.push(entry);
-        }
-
-        const rate = p.gstRate != null ? p.gstRate : 0.01;
-        if (rate <= 0.01) {
-          entry.amountThisMonth1pct = round2(entry.amountThisMonth1pct + p.amount);
-          entry.gst1pct = round2(entry.gst1pct + (p.gst || round2(p.amount * rate)));
-        } else {
-          entry.amountThisMonth5pct = round2(entry.amountThisMonth5pct + p.amount);
-          entry.gst5pct = round2(entry.gst5pct + (p.gst || round2(p.amount * rate)));
-        }
-      }
+      for (const p of rec.payments) addAdvance(rec, p);
     }
   }
 

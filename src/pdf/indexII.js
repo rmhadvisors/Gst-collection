@@ -9,7 +9,8 @@
  */
 
 const { normalizeDigits } = require('../util/text');
-const { parseDate } = require('../util/dates');
+const { parseDate, plausibleDate } = require('../util/dates');
+const F = require('./indexIIFields');
 
 const WING_MAP = { बी: 'B', वी: 'B', ए: 'A', सी: 'C', डी: 'D' };
 
@@ -17,7 +18,23 @@ const WING_MAP = { बी: 'B', वी: 'B', ए: 'A', सी: 'C', डी: 'D' 
 function looksLikeIndexII(text) {
   // Not मोबदला alone: the registration *receipt* (pavti) also carries it and is
   // handled by the legacy receipt parser.
-  return /सूची\s*क्र|Index\s*I[IlI]|सदनिका|दस्त\s*क्रमांक/.test(text);
+  // the party fields (दस्तऐवज करुन देणा-या/घेणा-या) and the first label (विलेखाचा) only exist on the Index-II
+  return /सूची\s*क्र|Index\s*I[IlI]|सदनिका|दस्त\s*क्रमांक|विलेखाचा|दस्त\S*\s*क[ं]?रुन\s*(?:दे|घे)|दस्त\s*नों?दणी\s*केल्याचा/.test(text);
+}
+
+/** Like vote(), but the winner must be seen in at least `min` OCR passes. */
+function voteMin(values, min = 2) {
+  const counts = new Map();
+  for (const v of values) {
+    if (v == null || v === '') continue;
+    counts.set(v, (counts.get(v) || 0) + 1);
+  }
+  let best = null;
+  let bestN = 0;
+  for (const [v, n] of counts) {
+    if (n > bestN) { best = v; bestN = n; }
+  }
+  return bestN >= min ? best : null;
 }
 
 function vote(values) {
@@ -93,7 +110,8 @@ function cleanName(raw) {
     .replace(/\s+/g, ' ')
     .replace(/[\s\-–.:]+$/, '')
     .trim();
-  return name.length >= 3 ? name : null;
+  const tidy = name.replace(/(?:\s*[-–]\s*)+[\d\s\-–;:.]*$/, '').trim();
+  return tidy.length >= 3 ? tidy : null;
 }
 
 const NAME_FIELD = /नाव\s*(?:[:ः;]\s*[-–]+|[-–]+)\s*([^\n]+)/g;
@@ -127,6 +145,38 @@ function parsePurchaser(text) {
   return found;
 }
 
+/** All purchasers: every non-seller "नाव:-" between the buyer label and the (9) date line. */
+function parsePurchasers(text) {
+  const label = /दस्त\S*\s*क[ं]?रुन\s*घे\S{0,4}णा/g;
+  let m;
+  let last = null;
+  while ((m = label.exec(text)) !== null) last = m;
+  if (!last) return [];
+  let window = text.slice(last.index + last[0].length, last.index + last[0].length + 2500);
+  const stop = window.search(/दिल्याचा\s*दिनांक/);
+  if (stop > 0) window = window.slice(0, stop);
+  const names = [];
+  for (const nm of window.matchAll(NAME_FIELD)) {
+    const name = cleanName(nm[1]);
+    if (name && name.includes(' ') && !SELLER.test(name) && !names.includes(name)) names.push(name);
+  }
+  return names;
+}
+
+/**
+ * Partners of the developer: Index-II field (7) names the builder firm "...डेव्हलपर्स तर्फे
+ * भागीदार <name> तर्फे ...". Returns the Devanagari names (the OCR may add a stray "दार").
+ */
+function parsePartners(text) {
+  const out = [];
+  const re = /भागीदार\s+(?:दार\s+)*([ऀ-ॿ][ऀ-ॿ\s.]*?)(?=\s+(?:तर्फे|वय|पॅन|पत्ता)|\s*[-–,;:\d|]|\s*$)/gm;
+  for (const m of text.matchAll(re)) {
+    const name = m[1].replace(/\s+/g, ' ').trim();
+    if (name.split(' ').length >= 2 && !out.includes(name)) out.push(name);
+  }
+  return out;
+}
+
 /** Registration date: the date following "दस्त नोंदणी केल्याचा दिनांक" (dd/mm/yyyy text). */
 function parseDateField(text) {
   const loose = /(\d{1,2})\s*[-/.]?\s*(\d{2})\s*[-/.]?\s*(20\d{2})/; // "27-082026" is OCR-merged
@@ -136,13 +186,14 @@ function parseDateField(text) {
   if (!m) m = text.match(strict);
   if (!m) return null;
   const text2 = `${m[1].padStart(2, '0')}/${m[2]}/${m[3]}`;
-  return parseDate(text2, { dayFirst: true }) ? text2 : null;
+  const parsed = parseDate(text2, { dayFirst: true });
+  return parsed && plausibleDate(parsed) ? text2 : null;
 }
 
 /** Carpet area in sq.m: the first number before "चौ.मी." (the flat; balconies follow). */
 function parseAreaSqm(text) {
-  const m = text.match(/(\d{2,3}(?:\.\d{1,2})?)\s*चौ\s*[.,]?\s*मी/);
-  return m ? Number(m[1]) : null;
+  const m = text.match(/(?<![\d.,])(\d{2,3}(?:[.,]\d{1,2})?)\s*चौ\s*[.,]?\s*मी/);
+  return m ? Number(m[1].replace(',', '.')) : null;
 }
 
 /** Area in sq.ft: the number before "चौ.फूट". */
@@ -173,20 +224,38 @@ function parseIndexIIPage(variants) {
       valueMethod = 'position';
     }
   }
-  const dateText = vote(texts.map(parseDateField));
+  const dateText = voteMin(texts.map(parseDateField));
+  const alternate = texts.some((t) => F.parseDocType(t) === 'alternate');
+  // the variant that found the most buyers wins (ties go to the earlier one)
+  const purchasers = texts.map(parsePurchasers).reduce((best, list) => (list.length > best.length ? list : best), []);
 
+  const marketReadings = texts.map(F.parseMarketValue).filter((v) => v != null);
+  const flat = vote(texts.map(parseFlat));
+  const shop = flat ? null : vote(texts.map(F.parseShop));
   return {
     isIndexII: texts.some(looksLikeIndexII),
-    flat: vote(texts.map(parseFlat)),
+    flat,
     wing: vote(wings),
-    value: vote(values),
+    // an alternate-accommodation agreement has consideration 0: the value to tax is the market value
+    value: alternate ? null : vote(values),
     valueMethod,
     valueCandidates: [...new Set(values)],
     purchaser: vote(texts.map(parsePurchaser)),
     date: dateText ? parseDate(dateText, { dayFirst: true }) : null,
     area: vote(texts.map(parseArea)),
+    docType: alternate ? 'alternate' : 'agreement',
+    considerationZero: alternate,
+    marketValue: marketReadings.length && new Set(marketReadings).size === 1 ? marketReadings[0] : null, // two different readings = unreadable
+    marketValuePasses: marketReadings.length,
+    building: voteMin(texts.map(F.parseBuilding), 2),
+    shop,
+    // only a shop is commercial: a flat page that merely mentions one is not
+    commercial: !!shop && !flat,
+    regNo: voteMin(texts.map(F.parseRegNo)),
+    purchasers,
+    partners: [...new Set(texts.flatMap(parsePartners))],
     areaSqm: vote(texts.map(parseAreaSqm)),
   };
 }
 
-module.exports = { parseIndexIIPage, parseAreaSqm, amountAfter, looksLikeIndexII, parseValue, parseFlat, parseWing, parsePurchaser };
+module.exports = { parsePartners, parseIndexIIPage, parsePurchasers, parseAreaSqm, amountAfter, looksLikeIndexII, parseValue, parseFlat, parseWing, parsePurchaser };

@@ -6,7 +6,10 @@ const { ocrImage, ocrImageVariants, MIN_OCR_CHARS } = require('./ocr');
 const { renderPages, countPages } = require('./renderPages');
 const { parseIndexIIPage, looksLikeIndexII, amountAfter } = require('./indexII');
 const { retryAgreementDate } = require('./dateRetry');
-const { flatKeyFromFilename, makeFlatKey, wingOf } = require('../util/flatKey');
+const { preparePhoto, isImageFile } = require('./photo');
+const {
+  flatKeyFromFilename, makeFlatKey, wingOf, shopKey,
+} = require('../util/flatKey');
 const { parseAmount, normalizeDigits } = require('../util/text');
 const { parseDate, formatMDY } = require('../util/dates');
 
@@ -191,10 +194,13 @@ async function processAgreements(pdfPath, opts = {}) {
   const namePages = opts.namePages || NAME_PAGES;
 
   const workDir = opts.workDir || path.join(path.dirname(pdfPath), '_pages');
-  const imgs = extractPageImages(pdfPath, {
-    pages: [...new Set([...Array.from({ length: MAX_FULL_SCAN_PAGES }, (_, n) => n + 1), ...namePages])],
-    outDir: workDir,
-  });
+  // .jpg/.jpeg/.png: a phone photo of one Index-II page; otherwise a (scanned) PDF
+  const imgs = isImageFile(pdfPath)
+    ? Object.assign([await preparePhoto(pdfPath, workDir)], { totalPages: 1, failedPages: [] })
+    : extractPageImages(pdfPath, {
+      pages: [...new Set([...Array.from({ length: MAX_FULL_SCAN_PAGES }, (_, n) => n + 1), ...namePages])],
+      outDir: workDir,
+    });
   const wanted = [...new Set([...Array.from({ length: MAX_FULL_SCAN_PAGES }, (_, n) => n + 1), ...namePages])];
   // Embedded image missing or unreadable -> render the page at 300 dpi instead.
   let totalPages = imgs.totalPages;
@@ -239,13 +245,13 @@ async function processAgreements(pdfPath, opts = {}) {
     const variants = [first, ...(await ocrImageVariants(byPage[page], ['4', '6', '11']))];
     const r = parseIndexIIPage(variants);
     r.dateRetried = false;
-    if ((r.flat || r.value) && !r.date) {
+    if ((r.flat || r.value || r.shop || r.marketValue) && !r.date) {
       // rows 9/10 unreadable: deskew + upscale and retry just that region
       const retry = await retryAgreementDate(byPage[page]);
       r.dateRetried = true;
       if (retry) r.date = retry.date;
     }
-    if (r.flat || r.value) parsed.push({ page, ...r });
+    if (r.flat || r.value || r.shop || r.marketValue) parsed.push({ page, ...r });
   }
 
   if (parsed.length) {
@@ -256,6 +262,8 @@ async function processAgreements(pdfPath, opts = {}) {
       let key;
       if (pg.flat) {
         key = makeFlatKey(pg.wing || fileWing, pg.flat);
+      } else if (pg.shop) {
+        key = shopKey(pg.shop); // "शॉप क्र. 1" -> Shop-1
       } else if (fileKey && !usedKeys.has(fileKey) && !records.has(fileKey)) {
         key = fileKey;
         flatSource = 'filename';
@@ -274,8 +282,14 @@ async function processAgreements(pdfPath, opts = {}) {
         valueMethod: null,
         agreementDate: null,
         names: [],
+        partners: [],
         areaSqft: null,
         areaSqm: null,
+        docType: 'agreement',
+        marketValue: null,
+        regNo: '',
+        buildingRaw: '',
+        commercial: false,
         page: pg.page,
       };
       if (rec.agreementValue == null && pg.value != null) {
@@ -287,7 +301,19 @@ async function processAgreements(pdfPath, opts = {}) {
         rec.agreementDate = pg.date;
         rec.dateSource = pg.dateRetried ? 'ocr-retry (deskew)' : 'ocr';
       }
-      if (pg.purchaser && !rec.names.includes(pg.purchaser)) rec.names.push(pg.purchaser);
+      // every joint purchaser when the page lists them, else the single one found
+      for (const n of (pg.purchasers && pg.purchasers.length ? pg.purchasers : [pg.purchaser])) {
+        if (n && !rec.names.includes(n)) rec.names.push(n);
+      }
+      for (const n of pg.partners || []) if (!rec.partners.includes(n)) rec.partners.push(n);
+      if (pg.docType === 'alternate') rec.docType = 'alternate';
+      if (rec.marketValue == null && pg.marketValue != null) {
+        rec.marketValue = pg.marketValue;
+        rec.marketValueSinglePass = pg.marketValuePasses < 2; // read in one OCR pass only
+      }
+      if (!rec.regNo && pg.regNo) rec.regNo = pg.regNo;
+      if (!rec.buildingRaw && pg.building) rec.buildingRaw = pg.building;
+      if (pg.commercial) rec.commercial = true;
       if (rec.areaSqft == null && pg.area != null) rec.areaSqft = pg.area;
       if (rec.areaSqm == null && pg.areaSqm != null) rec.areaSqm = pg.areaSqm;
       records.set(key || `?p${pg.page}`, rec);

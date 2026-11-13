@@ -4,10 +4,11 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const XLSX = require('xlsx');
-const { parseDate } = require('../util/dates');
-const { parseAmount } = require('../util/text');
+const { parseDate, formatMDY } = require('../util/dates');
+const { parseAmount, fuzzyNameSimilarity } = require('../util/text');
+const { canonicalBuilding, buildingInText } = require('../util/building');
 const {
-  parseFlatFromParticulars, normalizeFlatKey, cleanPartyName, hasChqReturn, renumberMap,
+  parseFlatFromParticulars, normalizeFlatKey, cleanPartyName, hasChqReturn, renumberMap, groupKey,
 } = require('../util/flatKey');
 
 /** Index of the first header cell matching `re` (-1 if none). */
@@ -91,7 +92,7 @@ function parseSheet(ws) {
 
     rows.push({
       rowIndex: i + 1,
-      date: parseDate(r[dateCol]),
+      date: parseDate(r[dateCol], { dayFirst: true }),
       particulars: party,
       flatNo,
       name,
@@ -103,7 +104,9 @@ function parseSheet(ws) {
       isCapital: !flatNo && /capital\s*a\/?c/i.test(party),
     });
   }
-  return { rows, projectName: detectProjectName(grid) };
+  // everything above the header row ("H D F C BANK 44444 Siddhivinayak Palace  Book", ...)
+  const title = grid.slice(0, headerRow).map((r) => String(r[0] == null ? '' : r[0]).trim()).filter(Boolean).join(' | ');
+  return { rows, projectName: detectProjectName(grid), title };
 }
 
 const round2 = (n) => Math.round(n * 100) / 100;
@@ -122,19 +125,21 @@ function parseTally(filePath, sheetName, label) {
   const rows = [];
   const sheets = [];
   const projects = [];
+  const titles = [];
   for (const name of names) {
     const parsed = parseSheet(wb.Sheets[name]);
     if (!parsed) { sheets.push({ name, receipts: 0, total: 0 }); continue; }
     parsed.rows.forEach((r) => { r.sheet = name; });
     rows.push(...parsed.rows);
     if (parsed.projectName) projects.push(parsed.projectName);
+    if (parsed.title) titles.push(parsed.title);
     sheets.push({ name, receipts: parsed.rows.length, total: round2(parsed.rows.reduce((s, r) => s + r.amount, 0)) });
   }
   const hash = crypto.createHash('sha1').update(fs.readFileSync(filePath)).digest('hex');
   const file = label || path.basename(filePath);
   rows.forEach((r) => { r.file = file; });
   const fileStats = [{
-    file, hash, sheets, receipts: rows.length, total: round2(rows.reduce((s, r) => s + r.amount, 0)),
+    file, hash, sheets, title: titles.join(' | '), receipts: rows.length, total: round2(rows.reduce((s, r) => s + r.amount, 0)),
   }];
   return {
     rows, ...groupRows(rows), fileStats, projectName: [...new Set(projects)][0] || '',
@@ -161,10 +166,15 @@ function groupRows(rows) {
       noVoucher: !row.vchNo,
       renumberedFrom: row.renumberedFrom || '',
       chqReturn: !!row.chqReturn,
+      allocatedBy: row.allocatedBy || '',
     };
     if (row.flatNo) {
-      const key = String(row.flatNo);
-      if (!byFlat.has(key)) byFlat.set(key, { flatNo: key, names: new Set(), payments: [] });
+      const key = groupKey(row.building, row.flatNo);
+      if (!byFlat.has(key)) {
+        byFlat.set(key, {
+          key, flatNo: String(row.flatNo), building: row.building || '', names: new Set(), payments: [],
+        });
+      }
       const g = byFlat.get(key);
       g.names.add(row.name);
       if (row.agmtDate && !g.agmtDate) g.agmtDate = row.agmtDate;
@@ -263,20 +273,42 @@ function detectProjectName(grid) {
  * explicit entry. Mutates and returns `tally`; `tally.manualAllocations`
  * lists what happened (including vouchers that were not found).
  */
+/** "B-603", or "Maitri Heights|403" when the flat number exists in more than one building. */
+function resolveTarget(tally, target) {
+  const raw = String(target).trim();
+  if (raw.includes('|')) {
+    const [b, f] = raw.split('|');
+    const flatNo = normalizeFlatKey(f) || f.trim();
+    return { key: groupKey(b.trim(), flatNo), flatNo, building: b.trim() };
+  }
+  const flatNo = normalizeFlatKey(raw) || raw;
+  if (tally.buildingsInUse) {
+    const hit = [...tally.byFlat.values()].filter((g) => g.flatNo === flatNo);
+    if (hit.length === 1) return { key: hit[0].key, flatNo, building: hit[0].building };
+    if (hit.length > 1) return { key: flatNo, flatNo, building: '', ambiguous: true };
+  }
+  return { key: flatNo, flatNo, building: '' };
+}
+
 function applyAllocations(tally, allocate) {
   tally.manualAllocations = [];
   for (const [vch, target] of Object.entries(allocate || {})) {
     if (vch.startsWith('_')) continue;
-    const flatNo = normalizeFlatKey(target) || String(target).trim();
+    const dest = resolveTarget(tally, target);
+    const { flatNo } = dest;
     const hits = tally.unallocated.filter((r) => String(r.vchNo) === String(vch));
-    if (!hits.length) {
-      tally.manualAllocations.push({ vchNo: String(vch), flatNo, found: false });
+    if (!hits.length || dest.ambiguous) {
+      tally.manualAllocations.push({
+        vchNo: String(vch), flatNo, found: false, reason: dest.ambiguous ? 'flat is in several buildings - write "Building|flat"' : 'voucher not found',
+      });
       continue;
     }
-    if (!tally.byFlat.has(flatNo)) {
-      tally.byFlat.set(flatNo, { flatNo, names: new Set(), nameList: [], manualNames: [], payments: [] });
+    if (!tally.byFlat.has(dest.key)) {
+      tally.byFlat.set(dest.key, {
+        key: dest.key, flatNo, building: dest.building, names: new Set(), nameList: [], manualNames: [], payments: [],
+      });
     }
-    const group = tally.byFlat.get(flatNo);
+    const group = tally.byFlat.get(dest.key);
     for (const row of hits) {
       const party = row.name.replace(/capital\s*a\/?c/i, '').trim();
       group.manualNames = group.manualNames || [];
@@ -322,6 +354,89 @@ function applyRenumber(tally, renumber) {
   return tally;
 }
 
+const sameDay = (a, b) => a instanceof Date && b instanceof Date
+  && (a.getTime() === b.getTime()
+    || (a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate())
+    || (a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate()));
+
+const HOME_NAME_MIN = 0.85;
+
+/**
+ * Building for a receipt whose Tally book has none.
+ *  1. the flat number exists in only ONE building (agreements or Tally books): that one;
+ *  2. otherwise flat + purchaser name (>= 0.85) + AGMT DT equal to the agreement date.
+ * Returns { building, by } or null (the receipt then goes to Unallocated).
+ */
+function homeBuilding(row, agreements, rows, perFile) {
+  const same = agreements.filter((a) => normalizeFlatKey(a.flatNo) === row.flatNo);
+  const buildings = new Set(same.map((a) => a.building));
+  for (const o of rows) {
+    const b = perFile.get(o.file);
+    if (b && o.flatNo === row.flatNo) buildings.add(b);
+  }
+  if (buildings.size === 1) return { building: [...buildings][0], by: 'flat number exists in only one building' };
+  // no known building has this flat: it is one flat of an unnamed book, not a clash
+  if (!buildings.size && !same.length) return { building: '', by: 'flat number found in no known building (building unknown)' };
+  for (const a of same) {
+    const names = [...(a.names || []), a.name].filter(Boolean);
+    const score = Math.max(0, ...names.map((n) => fuzzyNameSimilarity(row.name, n)));
+    if (score >= HOME_NAME_MIN && row.agmtDate && sameDay(row.agmtDate, a.agreementDate)) {
+      return { building: a.building, by: `allocated by flat+name+date (name ${Math.round(score * 100) / 100}, AGMT DT ${formatMDY(row.agmtDate)})` };
+    }
+  }
+  return null;
+}
+
+/**
+ * Give every receipt a building, then regroup so Maitri Heights 403 and
+ * Siddhivinayak Palace 403 stay apart. A book's building comes from overrides.json
+ * "books" ({"idfc 5112.xlsx": "Maitri Heights"}) or from its title when that names
+ * a known building. Buildings are only used when some book has one, or the
+ * agreements name two or more; otherwise nothing changes. In that mode a receipt
+ * whose book has no building is NEVER merged into a flat: it goes to Unallocated
+ * with its flat number kept as the (review) guess.
+ *
+ * @param {object} opts { names: [buildings read from agreements], agreementBuildings, buildings, books }
+ */
+function assignBuildings(tally, opts = {}) {
+  const buildings = opts.buildings || {};
+  const books = opts.books || {};
+  const names = [...new Set([...(opts.names || []), ...Object.keys(buildings).filter((k) => !k.startsWith('_'))])];
+  const titleOf = new Map((tally.fileStats || []).map((f) => [f.file, f.title || '']));
+
+  const bookBuilding = (file) => {
+    const set = Object.keys(books).find((k) => !k.startsWith('_') && k.toLowerCase() === String(file).toLowerCase());
+    if (set) return canonicalBuilding(books[set], buildings);
+    return buildingInText(titleOf.get(file) || '', names, buildings);
+  };
+  const perFile = new Map();
+  for (const file of new Set(tally.rows.map((r) => r.file))) perFile.set(file, bookBuilding(file));
+
+  const assigned = [...perFile.values()].some(Boolean);
+  const distinct = new Set((opts.agreementBuildings || []).filter(Boolean)).size;
+  tally.buildingsInUse = assigned || distinct >= 2;
+  tally.bookBuildings = [...perFile].map(([file, building]) => ({ file, building }));
+  if (!tally.buildingsInUse) return tally;
+
+  const agreements = (opts.agreements || []).filter((a) => a.flatNo && a.building);
+  for (const r of tally.rows) {
+    r.building = perFile.get(r.file) || '';
+    if (r.flatNo && !r.building) {
+      const home = homeBuilding(r, agreements, tally.rows, perFile);
+      if (home) {
+        r.building = home.building;
+        r.allocatedBy = home.by;
+        continue;
+      }
+      r.guessFlat = r.flatNo;
+      r.flatNo = null;
+      r.buildingReview = true;
+    }
+  }
+  Object.assign(tally, groupRows(tally.rows));
+  return tally;
+}
+
 /** Sum of every receipt row read from Tally (Opening/Closing Balance rows are never rows). */
 function totalReceipts(tally) {
   return Math.round(tally.rows.reduce((s, r) => s + r.amount, 0) * 100) / 100;
@@ -361,4 +476,4 @@ function mergeTallies(tallies) {
     rows, ...groupRows(rows), fileStats, projectName: uniqueNames.join(' & ') || '',
   };
 }
-module.exports = { parseTally, mergeTallies, applyAllocations, applyRenumber, totalReceipts, gstRateFromCell, findGstColumn };
+module.exports = { parseTally, mergeTallies, applyAllocations, applyRenumber, assignBuildings, totalReceipts, gstRateFromCell, findGstColumn };

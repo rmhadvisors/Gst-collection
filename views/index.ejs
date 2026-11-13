@@ -174,14 +174,14 @@
           <!-- Agreements -->
           <div class="form-group">
             <label>
-              Agreement PDF(s)
+              Agreement PDF(s) / photos
               <span class="tag tag-optional">Optional for GST Workbook</span>
             </label>
             <div class="drop-zone" id="agreementsZone">
               <div class="drop-zone-content">
                 <svg width="32" height="32" viewBox="0 0 36 36" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M18 6v18m0-18l-6 6m6-6l6 6"/><rect x="4" y="24" width="28" height="8" rx="2"/></svg>
-                <p>Drag &amp; drop Agreement PDFs here</p>
-                <p class="file-hint">Scanned PDFs (OCR processed)</p>
+                <p>Drag &amp; drop Agreement PDFs or photos here</p>
+                <p class="file-hint">Scanned PDFs, or .jpg / .png photos of an Index-II page (OCR processed)</p>
                 <button type="button" class="btn-browse" id="browseAgreements">Browse files</button>
               </div>
             </div>
@@ -189,10 +189,7 @@
           </div>
         </div>
 
-        <div class="form-group" style="margin-top:12px">
-          <label for="sheetName">Tally Sheet Name <span class="optional">(optional — defaults to first sheet)</span></label>
-          <input type="text" id="sheetName" placeholder="e.g. Sheet1" style="max-width:260px">
-        </div>
+        <p class="help-text" style="margin-top:12px">Every sheet of every Tally file is read, whatever it is named.</p>
 
         <div class="divider">Choose what to generate</div>
         <div class="action-grid">
@@ -357,7 +354,7 @@
     inp.type = 'file';
     inp.multiple = true;
     if (id === 'tally' || id === 'tallyU') inp.accept = '.xlsx,.xls';
-    if (id === 'agreements' || id === 'agreementsU') inp.accept = '.pdf';
+    if (id === 'agreements' || id === 'agreementsU') inp.accept = '.pdf,.jpg,.jpeg,.png';
     if (id === 'existing') inp.accept = '.xlsx';
     inp.style.display = 'none';
     document.body.appendChild(inp);
@@ -475,7 +472,8 @@
       alert('Please select at least one Tally receipts file (.xlsx).');
       return;
     }
-    if (!isUpdate && action === '/process' && !agrStore.files.length) {
+    const route = action.slice(action.lastIndexOf('/')); // drops any reverse-proxy prefix
+    if (!isUpdate && route === '/process' && !agrStore.files.length) {
       alert('Please upload at least one Agreement PDF for the Collection Sheet.');
       return;
     }
@@ -491,8 +489,11 @@
       '/update-collection':  'btnUpdCollection',
       '/update-gst':         'btnUpdGst',
     };
-    const activeBtn = document.getElementById(btnIds[action]);
+    const activeBtn = document.getElementById(btnIds[route]);
+    const resetBtn = () => { if (activeBtn) { activeBtn.classList.remove('loading'); activeBtn.disabled = false; } };
     if (activeBtn) { activeBtn.classList.add('loading'); activeBtn.disabled = true; }
+    statusAnchor = activeBtn;
+    showStatus('Uploading files…', false);
 
     // Build FormData
     const fd = new FormData();
@@ -501,17 +502,62 @@
     if (isUpdate) {
       for (const f of existStore.files) fd.append('existingWorkbook', f);
     }
-    const sheet = document.getElementById('sheetName');
-    if (sheet && sheet.value) fd.append('sheet', sheet.value);
 
-    // Submit
+    // Submit. The server answers at once with a job id (202); processing then runs
+    // in the background and we poll for progress, so big PDFs never time out.
+    // A plain HTML answer means the upload was rejected (e.g. wrong file type).
     fetch(action, { method: 'POST', body: fd })
-      .then(res => res.text())
-      .then(html => { document.open(); document.write(html); document.close(); })
-      .catch(err => {
-        alert('Submission failed: ' + err.message);
-        if (activeBtn) { activeBtn.classList.remove('loading'); activeBtn.disabled = false; }
+      .then(async (res) => {
+        if (!(res.headers.get('content-type') || '').includes('application/json')) {
+          const html = await res.text();
+          document.open(); document.write(html); document.close();
+          return;
+        }
+        const { statusUrl } = await res.json();
+        await pollJob(statusUrl);
+      })
+      .catch((err) => {
+        showStatus('Submission failed: ' + err.message, true);
+        resetBtn();
       });
+
+    async function pollJob(statusUrl) {
+      for (;;) {
+        await new Promise((r) => setTimeout(r, 2000));
+        let job;
+        try {
+          job = await (await fetch(statusUrl)).json();
+        } catch (e) {
+          continue; // transient network error: keep polling
+        }
+        if (job.status === 'done') {
+          const html = await (await fetch(job.resultUrl)).text();
+          document.open(); document.write(html); document.close();
+          return;
+        }
+        if (job.status === 'failed') {
+          showStatus('Processing failed: ' + (job.error || 'unknown error'), true);
+          resetBtn();
+          return;
+        }
+        showStatus(`Processing… ${job.message} (${job.elapsedSec}s)`, false);
+      }
+    }
+  }
+
+  let statusAnchor = null; // the button whose panel shows the status box
+  function showStatus(text, isError) {
+    let box = document.getElementById('jobStatus');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'jobStatus';
+      box.setAttribute('role', 'status');
+      const grid = statusAnchor && statusAnchor.closest('.action-grid');
+      (grid ? grid.parentNode : document.body).appendChild(box);
+    }
+    box.className = isError ? 'alert error' : 'update-note';
+    box.style.marginTop = '16px';
+    box.textContent = text;
   }
 
   // ── Add remove button style ──

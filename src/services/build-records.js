@@ -5,12 +5,16 @@ const path = require('path');
 const { processAgreements } = require('../pdf/agreement');
 const { closeOcr } = require('../pdf/ocr');
 const {
-  parseTally, mergeTallies, applyAllocations, applyRenumber, totalReceipts,
+  parseTally, mergeTallies, applyAllocations, applyRenumber, assignBuildings, totalReceipts,
 } = require('../tally/parse');
 const { buildRecord } = require('../engine/collection');
 const { buildTallyOnlyRecords } = require('../engine/tallyOnly');
 const { buildUnallocated } = require('../engine/unallocated');
-const { compareFlatKeys, normalizeFlatKey, renumberMap } = require('../util/flatKey');
+const { buildNoFlatRecords, partnerGstSetting } = require('../engine/noFlat');
+const {
+  compareFlatKeys, normalizeFlatKey, renumberMap, groupKey,
+} = require('../util/flatKey');
+const { canonicalBuilding } = require('../util/building');
 
 /** config/overrides.json (or `file`); a missing file is {}, a broken one is an error. */
 function loadOverrides(file) {
@@ -23,40 +27,49 @@ function loadOverrides(file) {
   }
 }
 
-/**
- * Read every Tally file (all sheets), merge them, then apply the overrides
- * "renumber" (old -> new flat) and "allocate" (vch no -> flat).
- *
- * @param {{path:string, originalname?:string}[]} tallyFiles
- */
-function prepareTally(tallyFiles, overrides = {}) {
+/** Read every Tally file (all sheets), merge them and apply "renumber" (old -> new flat). */
+function readTally(tallyFiles, overrides = {}) {
   const tallies = tallyFiles.map((tf) => parseTally(tf.path, undefined, tf.originalname));
-  const tally = applyRenumber(mergeTallies(tallies), overrides.renumber);
+  return applyRenumber(mergeTallies(tallies), overrides.renumber);
+}
 
-  // an allocation target may be written with the old flat number
+/** "allocate" targets may be written with the old flat number: follow the renumber. */
+function allocationsOf(overrides) {
   const map = renumberMap(overrides.renumber);
   const allocate = {};
   for (const [vch, target] of Object.entries(overrides.allocate || {})) {
     const key = normalizeFlatKey(target);
     allocate[vch] = (key && map.get(key)) || target;
   }
-  return applyAllocations(tally, allocate);
+  return allocate;
 }
 
-/** Per-flat override: keyed by the new flat number, falling back to the old one. */
-function overrideFor(overrides, flatNo, oldFlatNo) {
-  return overrides[flatNo] || overrides[oldFlatNo] || {};
+/**
+ * Tally books -> grouped receipts, with renumber + allocate applied. No building
+ * handling (flats are keyed by number alone): used by the "update existing sheet"
+ * flows. The full pipeline below also assigns buildings.
+ */
+function prepareTally(tallyFiles, overrides = {}) {
+  return applyAllocations(readTally(tallyFiles, overrides), allocationsOf(overrides));
+}
+
+/** Per-flat override: "Building|flat" first, then the flat (new number, then the old one). */
+function overrideFor(overrides, flatNo, oldFlatNo, building) {
+  return (building && overrides[groupKey(building, flatNo)]) || overrides[flatNo] || overrides[oldFlatNo] || {};
 }
 
 /**
  * The whole pipeline, shared by the web server and the CLI: Tally books + OCR'd
- * agreements -> sorted flat records, the Unallocated list and the receipt totals.
- * Agreements may be empty (tally-only run). Progress is reported through
+ * agreements (PDF or photo) -> sorted flat records + one block per party without a flat no., and the
+ * receipt totals. Agreements may be empty (tally-only run). Progress goes to
  * `onProgress(message)`. Uploaded files are NOT deleted here.
+ *
+ * Agreements are read BEFORE receipts are assigned to flats, because the building
+ * an agreement names decides whether two "403"s are the same flat.
  *
  * @param {object} opts
  * @param {{path:string, originalname?:string}[]} opts.tallyFiles
- * @param {{path:string, originalname?:string}[]} [opts.agreementFiles]
+ * @param {{path:string, originalname?:string}[]} [opts.agreementFiles]  .pdf / .jpg / .jpeg / .png
  * @param {object[]} [opts.agreementObjects]  agreements that are already parsed (skip OCR)
  * @param {object} [opts.overrides]
  * @param {string} opts.workDir          scratch folder for extracted page images
@@ -67,21 +80,20 @@ async function buildRecords(opts) {
     tallyFiles, agreementFiles = [], agreementObjects = [], overrides = {}, workDir, onProgress = () => {},
   } = opts;
   const renumber = renumberMap(overrides.renumber);
+  const aliases = overrides.buildings || {};
 
   onProgress(`Reading ${tallyFiles.length} Tally file(s)`);
-  const tally = prepareTally(tallyFiles, overrides);
-  const records = [];
+  const tally = readTally(tallyFiles, overrides);
 
+  const agreements = [];
   const addAgreement = (agreement) => {
     const oldHint = agreement.flatNoHint;
     const hint = oldHint && renumber.get(normalizeFlatKey(oldHint));
+    agreement.oldFlatNoHint = oldHint;
     if (hint) agreement.flatNoHint = hint;
-    const rec = buildRecord(agreement, tally, overrideFor(overrides, agreement.flatNoHint, oldHint));
-    rec.pdf = agreement.pdf;
-    if (hint) rec.flags.push(`Renumbered: agreement names flat ${oldHint}, now ${hint}`);
-    records.push(rec);
+    if (agreement.buildingRaw && agreement.building == null) agreement.building = canonicalBuilding(agreement.buildingRaw, aliases);
+    agreements.push(agreement);
   };
-
   try {
     let n = 0;
     for (const af of agreementFiles) {
@@ -97,13 +109,46 @@ async function buildRecords(opts) {
     await closeOcr();
   }
 
+  onProgress('Matching receipts to flats');
+  const named = agreements.map((a) => a.building).filter(Boolean);
+  assignBuildings(tally, {
+    names: named,
+    agreementBuildings: named,
+    buildings: aliases,
+    books: overrides.books,
+    agreements: agreements.map((a) => ({
+      flatNo: a.flatNoHint, building: a.building, agreementDate: a.agreementDate, names: a.names, name: a.primaryName,
+    })),
+  });
+  applyAllocations(tally, allocationsOf(overrides));
+
+  const records = [];
+  for (const agreement of agreements) {
+    const building = agreement.building || '';
+    const rec = buildRecord(agreement, tally, overrideFor(overrides, agreement.flatNoHint, agreement.oldFlatNoHint, building));
+    rec.pdf = agreement.pdf;
+    if (agreement.flatNoHint !== agreement.oldFlatNoHint && agreement.oldFlatNoHint) {
+      rec.flags.push(`Renumbered: agreement names flat ${agreement.oldFlatNoHint}, now ${agreement.flatNoHint}`);
+    }
+    records.push(rec);
+  }
+
   onProgress('Adding flats that exist only in Tally');
-  const matched = new Set(records.flatMap((r) => [r.flatNo, r.tallyFlat].filter(Boolean)));
+  const matched = new Set(records.map((r) => r.tallyKey).filter(Boolean));
   records.push(...buildTallyOnlyRecords(tally, matched, overrides, {}));
-  records.sort((a, b) => compareFlatKeys(a.flatNo, b.flatNo));
+  records.sort((a, b) => (a.building || '').localeCompare(b.building || '') || compareFlatKeys(a.flatNo, b.flatNo));
+
+  // Receipts without a flat number: one block per party, printed below the flats on the main sheet.
+  const partners = [...new Set([
+    ...(Array.isArray(overrides.partners) ? overrides.partners : []),
+    ...agreements.flatMap((a) => a.partners || []),
+  ])];
+  const noFlat = buildNoFlatRecords(tally, { partners, partnerGst: partnerGstSetting(overrides), records });
+  records.push(...noFlat);
 
   return {
     records,
+    noFlat,
     tally,
     unallocated: buildUnallocated(tally, records),
     tallyTotal: totalReceipts(tally),
@@ -112,5 +157,5 @@ async function buildRecords(opts) {
 }
 
 module.exports = {
-  buildRecords, prepareTally, loadOverrides, overrideFor,
+  buildRecords, prepareTally, readTally, loadOverrides, overrideFor,
 };

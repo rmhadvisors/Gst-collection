@@ -3,6 +3,7 @@
 const { floorFromFlat, floorLabel } = require('../util/text');
 const { parseDate, formatMDY } = require('../util/dates');
 const { voucherFlags } = require('./unallocated');
+const { isShopKey } = require('../util/flatKey');
 
 const DEFAULT_TALLY_ONLY_GST_RATE = 0.01;
 const TALLY_ONLY_STATUS = 'Tally Only – Agreement Not Available';
@@ -61,9 +62,10 @@ function applyTallyOnlyOverrides(payments, override, defaultRate) {
 function buildTallyOnlyRecord(group, override = {}, opts = {}) {
   const defaultRate = opts.defaultRate != null ? opts.defaultRate : DEFAULT_TALLY_ONLY_GST_RATE;
   const flatNo = override.flatNo || group.flatNo;
+  const shop = isShopKey(flatNo); // shops are taxed at 5% (a CA confirms it)
 
   let payments = (group.payments || []).map((p) => {
-    const rate = p.gstRate != null ? p.gstRate : defaultRate;
+    const rate = p.gstRate != null ? p.gstRate : (shop ? 0.05 : defaultRate);
     return {
       date: p.date,
       dateText: formatMDY(p.date),
@@ -106,6 +108,12 @@ function buildTallyOnlyRecord(group, override = {}, opts = {}) {
     agreementValueWithGst: null,
     payments,
     totalReceived,
+    baseReceived: totalReceived,
+    gstReceived: 0,
+    gstOutstanding: null,
+    osAmount: null,
+    marketValue: null,
+    agreementDateObj: group.agmtDate || null,
     totalGst,
     balance: null,
     matchReason: 'tally-only',
@@ -113,7 +121,10 @@ function buildTallyOnlyRecord(group, override = {}, opts = {}) {
     valueSource: 'tally',
     valueCandidates: [],
     hasAgreement: false,
-    flags: voucherFlags(payments),
+    building: group.building || '',
+    tallyKey: group.key || String(group.flatNo),
+    commercial: shop,
+    flags: [...(shop ? ['commercial – confirm rate'] : []), ...voucherFlags(payments)],
     status: TALLY_ONLY_STATUS,
   };
 }
@@ -122,9 +133,9 @@ function buildTallyOnlyRecords(tally, agreementFlatNos = [], overrides = {}, opt
   const matched = new Set(Array.from(agreementFlatNos, (flatNo) => String(flatNo)));
   const out = [];
 
-  for (const [flatNo, group] of tally.byFlat) {
-    if (matched.has(String(flatNo))) continue;
-    const override = overrides[flatNo] || overrides[String(flatNo)] || {};
+  for (const [key, group] of tally.byFlat) {
+    if (matched.has(String(key))) continue;
+    const override = overrides[key] || overrides[group.flatNo] || {};
     out.push(buildTallyOnlyRecord(group, override, opts));
   }
 

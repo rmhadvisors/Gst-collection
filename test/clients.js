@@ -61,8 +61,45 @@ async function runClient(dir) {
     await wb.xlsx.readFile(out);
 
     const rec = reconcile(result.records, opts);
+
+    // what the CA sees in the downloaded Excel
+    const summary = {};
+    let summaryTotal = 0; // ADVANCES + GST PAID over every Summary row (flats and no-flat parties)
+    wb.getWorksheet('Summary').eachRow((r) => {
+      if (typeof r.getCell(1).value !== 'number') return;
+      summaryTotal += (Number(r.getCell(10).value) || 0) + (Number(r.getCell(13).value) || 0);
+      const b = r.getCell(18).value || '';
+      summary[b ? `${b}|${r.getCell(3).value}` : String(r.getCell(3).value)] = {
+        advances: r.getCell(10).value,
+        osAmount: r.getCell(12).value,
+        gstPaid: r.getCell(13).value,
+        advForm3: r.getCell(14).value,
+        outstanding: r.getCell(15).value,
+        regNo: r.getCell(16).value,
+        marketValue: r.getCell(17).value,
+        agreementDateIsExcelDate: r.getCell(6).value instanceof Date,
+      };
+    });
+    // every payment date in the flat sheets must be a real Excel date shown dd/mm/yyyy
+    let paymentDateCells = 0;
+    let mainSheetTotal = 0;
+    const parties = []; // blocks with no flat no. on the detail sheets
+    let badDateCells = 0;
+    for (const ws of wb.worksheets) {
+      if (['Summary', 'Audit'].includes(ws.name)) continue;
+      ws.eachRow((r, n) => {
+        const c = r.getCell(11);
+        if (c.value === 'TOTAL ::') {
+          mainSheetTotal += Number(r.getCell(12).value) || 0;
+          if (!r.getCell(3).value) parties.push({ name: r.getCell(8).value, total: r.getCell(12).value, gst: r.getCell(13).value });
+        }
+        if (n < 5 || c.value == null || c.value === '' || c.value === 'TOTAL ::') return;
+        paymentDateCells += 1;
+        if (!(c.value instanceof Date) || c.numFmt !== 'dd/mm/yyyy') badDateCells += 1;
+      });
+    }
     const flats = {};
-    for (const r of result.records) {
+    for (const r of result.records.filter((x) => !x.noFlat)) {
       flats[r.flatNo] = {
         name: r.name,
         totalReceived: r.totalReceived,
@@ -71,6 +108,15 @@ async function runClient(dir) {
         agreementValue: r.agreementValue,
         agreementDate: ddmmyyyy(r.agreementDateObj),
         carpetArea: r.carpetArea,
+        building: r.building,
+        regNo: r.regNo,
+        marketValue: r.marketValue,
+        baseReceived: r.baseReceived,
+        gstReceived: r.gstReceived,
+        gstOutstanding: r.gstOutstanding,
+        osAmount: r.osAmount,
+        needsManual: !!r.needsManual,
+        payDates: r.payments.map((p) => ddmmyyyy(p.date)),
         payments: r.payments.map((p) => [p.dateText, p.amount, p.gst, p.vchNo]),
       };
     }
@@ -86,7 +132,14 @@ async function runClient(dir) {
         reconciliation: rec.ok ? 'MATCHED' : `DIFFERENCE ${rec.diff}`,
         sheets: wb.worksheets.map((w) => w.name),
         warning: String(wb.getWorksheet('Summary').getRow(1).getCell(1).value).startsWith('CHECK BEFORE USE'),
+        summary,
+        dateCells: { payments: paymentDateCells, notRealDates: badDateCells },
         flats,
+        mainSheetTotal: round2(mainSheetTotal),
+        summaryTotal: round2(summaryTotal),
+        noFlat: parties,
+        noFlatPartnerGst: result.records.filter((x) => x.noFlat).map((x) => [x.name, x.partner, x.totalGst, x.flags[0]]),
+        noUnallocatedSheet: !wb.getWorksheet('Unallocated Receipts'),
       },
     };
   } finally {
@@ -128,8 +181,46 @@ async function main() {
     check(`Tally total ${exp.tallyTotal}`, () => assert.strictEqual(actual.tallyTotal, exp.tallyTotal));
     check(`Unallocated: ${exp.unallocated.count} receipt(s), total ${exp.unallocated.total}`, () => assert.deepStrictEqual(actual.unallocated, exp.unallocated));
     check('flat receipts + Unallocated = Tally total (MATCHED)', () => assert.strictEqual(actual.reconciliation, exp.reconciliation));
+    check('no separate "Unallocated Receipts" sheet', () => assert.strictEqual(actual.noUnallocatedSheet, true));
+    if (exp.mainSheetTotal != null) {
+      check(`main sheet total ${exp.mainSheetTotal} = Summary total = Tally total`, () => {
+        assert.strictEqual(actual.mainSheetTotal, exp.mainSheetTotal);
+        assert.strictEqual(actual.summaryTotal, exp.mainSheetTotal);
+        assert.strictEqual(actual.tallyTotal, exp.mainSheetTotal);
+      });
+    }
+    if (exp.noFlat) {
+      check(`parties without a flat no. (largest first): ${exp.noFlat.parties.length} block(s)`, () => {
+        assert.deepStrictEqual(actual.noFlat.map((x) => x.name.toLowerCase()), exp.noFlat.parties.map((x) => x.toLowerCase()));
+        assert.deepStrictEqual(actual.noFlat.map((x) => x.total), [...actual.noFlat.map((x) => x.total)].sort((a, b) => b - a));
+        for (const [name, gstBlank] of Object.entries(exp.noFlat.gstBlank || {})) {
+          const q = actual.noFlat.find((x) => x.name.toLowerCase() === name.toLowerCase());
+          assert.ok(q, name);
+          assert.strictEqual(q.gst === '' || q.gst == null || q.gst === 0, gstBlank, `GST of ${name}`);
+        }
+        for (const [name, flag] of Object.entries(exp.noFlat.flags || {})) {
+          const q = actual.noFlatPartnerGst.find((x) => x[0].toLowerCase() === name.toLowerCase());
+          assert.ok(q && q[3].startsWith(flag), `${name}: ${q && q[3]}`);
+        }
+      });
+    }
     check(`workbook sheets: ${exp.sheets.join(', ')}`, () => assert.deepStrictEqual(actual.sheets, exp.sheets));
     check(`workbook warning row ${exp.warning ? 'shown' : 'absent'}`, () => assert.strictEqual(actual.warning, exp.warning));
+    if (exp.summary) {
+      check(`Summary sheet cells for ${Object.keys(exp.summary).join(', ')}`, () => {
+        for (const k of Object.keys(exp.summary)) {
+          for (const field of Object.keys(exp.summary[k])) {
+            assert.deepStrictEqual(actual.summary[k] && actual.summary[k][field], exp.summary[k][field], `Summary ${k}, ${field}`);
+          }
+        }
+      });
+    }
+    if (exp.dateCells) {
+      check(`every payment date is a real Excel date, dd/mm/yyyy (${actual.dateCells.payments} cells)`, () => {
+        assert.strictEqual(actual.dateCells.notRealDates, exp.dateCells.notRealDates);
+        assert.ok(actual.dateCells.payments > 0, 'no payment date cells found');
+      });
+    }
     check(`${Object.keys(exp.flats).length} flat(s) identical (names, totals, GST, every payment)`, () => {
       assert.deepStrictEqual(Object.keys(actual.flats), Object.keys(exp.flats));
       // only the fields written in expected.json are compared (the CA's own figures

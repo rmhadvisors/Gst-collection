@@ -22,6 +22,9 @@ function voucherFlags(payments) {
   for (const p of list.filter((x) => x.chqReturn)) {
     flags.push(`Vch ${p.vchNo} ${inr(p.amount)} is a CHQ RETURN booked as a receipt`);
   }
+  for (const p of list.filter((x) => x.allocatedBy)) {
+    flags.push(`Vch ${p.vchNo} ${inr(p.amount)}: ${/^allocated/.test(p.allocatedBy) ? '' : 'allocated - '}${p.allocatedBy} (Tally book has no building)`);
+  }
   for (const p of list.filter((x) => x.manualAllocation)) {
     flags.push(`Vch ${p.vchNo} ${inr(p.amount)} from "${p.allocatedFrom}" (manual allocation)`);
   }
@@ -38,10 +41,13 @@ function voucherFlags(payments) {
  */
 function buildUnallocated(tally, records = []) {
   const candidates = [];
-  for (const g of tally.byFlat.values()) for (const n of g.nameList) candidates.push({ flatNo: g.flatNo, name: n });
+  const label = (building, flat) => (building ? `${building} ${flat}` : flat);
+  for (const g of tally.byFlat.values()) {
+    for (const n of [...g.nameList, ...(g.manualNames || [])]) candidates.push({ flatNo: g.flatNo, name: n, label: label(g.building, g.flatNo) });
+  }
   for (const r of records) {
     for (const n of (r.allottees && r.allottees.length ? r.allottees : [r.name])) {
-      if (n && r.flatNo) candidates.push({ flatNo: r.flatNo, name: n });
+      if (n && r.flatNo) candidates.push({ flatNo: r.flatNo, name: n, label: label(r.building, r.flatNo) });
     }
   }
 
@@ -61,9 +67,12 @@ function buildUnallocated(tally, records = []) {
       party: row.name,
       vchNo: row.vchNo,
       amount: row.amount,
-      guess: hit ? best.flatNo : '',
+      // best name match; failing that the flat number the narration gave (its building is unknown)
+      guess: hit ? best.label : (row.guessFlat || ''),
       guessScore: hit ? Math.round(best.score * 100) / 100 : '',
       flag: [
+        hit ? '(review) best flat guess by name - NOT allocated' : '',
+        row.buildingReview ? '(review) building of this Tally book is not known - flat number kept as the guess' : '',
         row.dupVoucher ? 'Possible duplicate' : '',
         !row.vchNo ? 'No voucher number' : '',
         row.chqReturn ? 'CHQ RETURN booked as receipt' : '',

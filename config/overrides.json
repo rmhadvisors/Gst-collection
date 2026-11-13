@@ -1,23 +1,4 @@
 {
-  "_comment": "Per-flat manual corrections, keyed by flat number. \"allocate\" moves Tally receipts that carry no flat number (e.g. Capital Ac) onto a flat, keyed by Vch No. \"renumber\" maps old flat numbers to new ones (Tally receipts and agreements), e.g. {\"403\": \"503\"}.",
-  "renumber": {},
-  "allocate": {
-    "81": "B-603",
-    "82": "B-603"
-  },
-  "1804": {
-    "agreementValue": 4490000,
-    "name": "Mrs. Chhaya T. Kadam",
-    "flatType": "2BHK",
-    "carpetArea": 51.17,
-    "regNo": "2/91",
-    "floor": "18th Floor",
-    "agreementDate": "3/10/26",
-    "extraPayments": [
-      { "date": "3/4/26", "amount": 44900 },
-      { "date": "4/25/26", "amount": 140699 }
-    ]
-  },
   "904": {
     "name": "ANKIT JAYESH VORA/JAYESH S VORA",
     "flatType": "4BHK",
@@ -32,5 +13,41 @@
         "note": "GST on agreement — in CA sheet but not in Tally bank receipt"
       }
     ]
+  },
+  "1804": {
+    "agreementValue": 4490000,
+    "name": "Mrs. Chhaya T. Kadam",
+    "flatType": "2BHK",
+    "carpetArea": 51.17,
+    "regNo": "2/91",
+    "floor": "18th Floor",
+    "agreementDate": "3/10/26",
+    "extraPayments": [
+      {
+        "date": "3/4/26",
+        "amount": 44900
+      },
+      {
+        "date": "4/25/26",
+        "amount": 140699
+      }
+    ]
+  },
+  "_comment": "Per-flat manual corrections, keyed by flat number. \"allocate\" moves Tally receipts that carry no flat number (e.g. Capital Ac) onto a flat, keyed by Vch No. \"renumber\" maps old flat numbers to new ones (Tally receipts and agreements), e.g. {\"403\": \"503\"}. \"buildings\" gives each building its English name and the spellings it has in Index-II text / Tally book titles; \"books\" names the building of a Tally book that does not say it in its title, e.g. {\"idfc 5112.xlsx\": \"Maitri Heights\"} (matched on the file name).",
+  "buildings": {
+    "Maitri Heights": [
+      "मैत्री हाईट्स",
+      "maitri"
+    ],
+    "Siddhivinayak Palace": [
+      "सिद्धिविनायक पॅलेस",
+      "siddhivinayak"
+    ]
+  },
+  "books": {},
+  "renumber": {},
+  "allocate": {
+    "81": "B-603",
+    "82": "B-603"
   }
 }

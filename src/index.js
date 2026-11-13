@@ -41,10 +41,14 @@ Options:
   --keep-pages         Keep the extracted page JPEGs for inspection
   -h, --help           Show this help
 
-Agreements may be individual .pdf files or folders containing .pdf files.
-The flat number is taken from the PDF filename (e.g. "1804-CHHAYA KADAM.pdf").
+Agreements may be .pdf, .jpg, .jpeg or .png files (a photo is one Index-II page), or folders of them.
+The flat number is read from the agreement; the filename (e.g. "1804-CHHAYA KADAM.pdf") is only a fallback.
+The building comes from the Index-II text; config/overrides.json can name each Tally book's building.
+The old note follows. The flat number is taken from the PDF filename (e.g. "1804-CHHAYA KADAM.pdf").
 `);
 }
+
+const IMAGE_OR_PDF = /\.(pdf|jpe?g|png)$/i; // a photo of an Index-II page is one page
 
 function collectPdfs(inputs) {
   const pdfs = [];
@@ -53,9 +57,9 @@ function collectPdfs(inputs) {
     const stat = fs.statSync(inp);
     if (stat.isDirectory()) {
       fs.readdirSync(inp)
-        .filter((f) => f.toLowerCase().endsWith('.pdf'))
+        .filter((f) => IMAGE_OR_PDF.test(f))
         .forEach((f) => pdfs.push(path.join(inp, f)));
-    } else if (inp.toLowerCase().endsWith('.pdf')) {
+    } else if (IMAGE_OR_PDF.test(inp)) {
       pdfs.push(inp);
     }
   }
@@ -89,7 +93,7 @@ async function main() {
 
   // Same pipeline and same workbook as the web upload.
   const {
-    records, tally, unallocated, tallyTotal, tallyFiles,
+    records, tally, tallyTotal, tallyFiles,
   } = await buildRecords({
     tallyFiles: args.tally.map(asFile),
     agreementFiles: pdfs.map(asFile),
@@ -112,10 +116,9 @@ async function main() {
 
   await writeStyledCollectionWorkbook(records, outPath, {
     projectName: tally.projectName || undefined,
-    unallocated,
     reconciliation: { tallyTotal, files: tallyFiles },
   });
-  console.log(`\nWrote ${records.length} flat(s) to: ${outPath}`);
+  console.log(`\nWrote ${records.length} flat/party block(s) to: ${outPath}`);
 
   if (!args.keepPages) {
     fs.rmSync(workDir, { recursive: true, force: true });

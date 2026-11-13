@@ -11,7 +11,8 @@
     "start": "node server.js",
     "preview": "node server.js",
     "cli": "node src/index.js",
-    "test": "node test/run.js && node test/regression.js && node test/part3.js && node test/clients.js"
+    "test": "node test/run.js && node test/regression.js && node test/part3.js && node test/monthly-group.js && node test/clients.js && node test/building-allocation.js && node test/web-jobs.js",
+    "test:web": "node test/web-clients.js"
   },
   "keywords": [
     "gst",

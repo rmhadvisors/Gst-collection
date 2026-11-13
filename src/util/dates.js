@@ -54,6 +54,13 @@ function parseDate(value, opts = {}) {
   return isNaN(d) ? null : d;
 }
 
+/** A plausible agreement / receipt date: 2017 (RERA) up to next year. A misread like 2058 is not one. */
+function plausibleDate(d) {
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return false;
+  const y = d.getFullYear();
+  return y >= 2017 && y <= new Date().getFullYear() + 1;
+}
+
 /** Format as m/d/yy to match the collection sheet style (e.g. 3/10/26). */
 function formatMDY(date) {
   if (!(date instanceof Date) || isNaN(date)) return '';
@@ -63,4 +70,4 @@ function formatMDY(date) {
   return `${m}/${d}/${y}`;
 }
 
-module.exports = { parseDate, formatMDY };
+module.exports = { parseDate, formatMDY, plausibleDate };

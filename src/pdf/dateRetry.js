@@ -12,6 +12,7 @@
 const path = require('path');
 const sharp = require('sharp');
 const { createWorker } = require('tesseract.js');
+const { withTimeout } = require('../util/timeout');
 
 const LANG_PATH = path.join(__dirname, '..', '..');
 const ANGLES = [0, -3, 3, -1.5, 1.5];
@@ -26,17 +27,19 @@ function digitsWorker() {
     workerPromise = createWorker('eng', 1, { langPath: LANG_PATH, gzip: false }).then(async (w) => {
       await w.setParameters({ tessedit_char_whitelist: '0123456789/-. ', tessedit_pageseg_mode: '6' });
       return w;
-    });
+    }).catch((e) => { workerPromise = null; throw e; }); // a failed start is not cached
   }
   return workerPromise;
 }
 
 async function closeDateWorker() {
-  if (workerPromise) {
-    const w = await workerPromise;
-    await w.terminate();
-    workerPromise = null;
-  }
+  const pending = workerPromise;
+  workerPromise = null;
+  if (!pending) return;
+  try {
+    const w = await withTimeout(pending, 15000, 'date worker start');
+    await withTimeout(w.terminate(), 15000, 'date worker terminate');
+  } catch (_) { /* forced: never hang a job on teardown */ }
 }
 
 /** Valid calendar dates only (dd/mm, 2020-2035); returns a Date or null. */
@@ -86,7 +89,7 @@ async function retryAgreementDate(imagePath) {
           .grayscale().clahe({ width: 8, height: 8, maxSlope: 3 }).normalise()
           .extend({ top: 30, bottom: 30, left: 30, right: 30, background: '#fff' })
           .png().toBuffer();
-        texts.push((await worker.recognize(img)).data.text);
+        texts.push((await withTimeout(worker.recognize(img), 120000, 'date OCR')).data.text);
       }
     }
   }

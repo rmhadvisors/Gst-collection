@@ -13,9 +13,23 @@ function makeFlatKey(wing, number) {
 
 /** Normalise any "B 607" / "B-607" / "B- 607" / "607" string to a flat key (or ''). */
 function normalizeFlatKey(raw) {
-  const m = String(raw == null ? '' : raw).trim().match(/^([A-Za-z])?\s*[-–._]?\s*(\d{2,4})$/);
+  const s = String(raw == null ? '' : raw).trim();
+  const shop = s.match(SHOP_RE);
+  if (shop) return shopKey(shop[1]);
+  const m = s.match(/^([A-Za-z])?\s*[-–._]?\s*(\d{2,4})$/);
   return m ? makeFlatKey(m[1], m[2]) : '';
 }
+
+/** "Shop 1", "shop no 1A", "Shop-1" (whole string). */
+const SHOP_RE = /^shop\s*(?:no\.?)?\s*[-–._ ]?\s*(\d{1,3}[A-Za-z]?)$/i;
+const shopKey = (n) => `Shop-${String(n).toUpperCase()}`;
+const isShopKey = (key) => /^Shop-/i.test(String(key || ''));
+
+/**
+ * Key of a flat inside its building. With no building it is the plain flat key
+ * (so single-building runs are unchanged); with one, "Maitri Heights|403".
+ */
+const groupKey = (building, flat) => (building ? `${building}|${flat}` : String(flat));
 
 /** Wing letter of a flat key ('' when none). */
 function wingOf(key) {
@@ -30,8 +44,13 @@ function wingOf(key) {
  */
 function parseFlatFromParticulars(text) {
   const s = String(text || '').trim();
-  // "Flat No.1804", "flat no 1804", "Shop 1", "Flat B-1002" (wing optional)
-  let m = s.match(/^(?:flat|shop)\s*(?:no\.?)?\s*([A-Za-z])?\s*[-–.]?\s*(\d{1,4})\b/i);
+  // "Shop 1 NAME", "Shop No.1A NAME"
+  const shop = s.match(/^shop\s*(?:no\.?)?\s*[-–._ ]?\s*(\d{1,3}[A-Za-z]?)\b/i);
+  if (shop) {
+    return { key: shopKey(shop[1]), rest: s.slice(shop[0].length).replace(/^[\s.:,-]+/, '').trim() };
+  }
+  // "Flat No.1804", "flat no 1804", "Flat B-1002" (wing optional)
+  let m = s.match(/^flat\s*(?:no\.?)?\s*([A-Za-z])?\s*[-–.]?\s*(\d{1,4})\b/i);
   // "B 607", "B-1002", "A- 503"
   if (!m) m = s.match(/^([A-Za-z])\s*[-–._]?\s*(\d{3,4})\b/);
   // bare "403 NAME"
@@ -77,13 +96,16 @@ function flatKeyFromFilename(filename) {
     /\d{3,4}$/.test(str.slice(0, off)) ? '' : m
   ));
 
-  let m = s.match(/(?:flat|shop)\s*no\.?\s*([A-Za-z])?\s*[-–._]?\s*(\d{3,4})/i);
+  const shop = s.match(/shop\s*(?:no\.?)?\s*[-–._ ]?\s*(\d{1,3}[A-Za-z]?)(?![\dA-Za-z])/i);
+  if (shop) return shopKey(shop[1]);
+  let m = s.match(/flat\s*no\.?\s*([A-Za-z])?\s*[-–._]?\s*(\d{3,4})/i);
   if (m) return makeFlatKey(m[1], m[2]);
 
   m = s.match(/(?:^|[^A-Za-z])([A-Za-z])\s*[-–._ ]?\s*(\d{3,4})(?!\d)/);
   if (m) return makeFlatKey(m[1], m[2]);
 
-  const groups = [...s.matchAll(/(\d{3,4})/g)];
+  // a leading 0 ("0825" = a month) or a year (2025, 2026) is not a flat number
+  const groups = [...s.matchAll(/(\d{3,4})/g)].filter((g) => !/^0/.test(g[1]) && !/^20[23]\d$/.test(g[1]));
   return groups.length ? groups[groups.length - 1][1] : null;
 }
 
@@ -110,6 +132,6 @@ function compareFlatKeys(a, b) {
 }
 
 module.exports = {
-  makeFlatKey, normalizeFlatKey, renumberMap, wingOf, parseFlatFromParticulars, cleanPartyName, hasChqReturn,
+  makeFlatKey, normalizeFlatKey, groupKey, shopKey, isShopKey, renumberMap, wingOf, parseFlatFromParticulars, cleanPartyName, hasChqReturn,
   flatKeyFromFilename, compareFlatKeys,
 };

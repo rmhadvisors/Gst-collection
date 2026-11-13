@@ -3,7 +3,7 @@
 const {
   floorFromFlat, floorLabel, nameSimilarity, fuzzyNameSimilarity, HAS_DEVANAGARI,
 } = require('../util/text');
-const { normalizeFlatKey } = require('../util/flatKey');
+const { normalizeFlatKey, groupKey, isShopKey } = require('../util/flatKey');
 const { voucherFlags } = require('./unallocated');
 const { parseDate, formatMDY } = require('../util/dates');
 const { transliterateName } = require('../util/translit');
@@ -67,9 +67,18 @@ function applyPaymentOverrides(payments, override, gstForAmount) {
 const NAME_MATCH_MIN = 0.75;
 
 /** Tally group for a flat key; "B 607"/"B-607"/"B- 607" are the same key. */
-function findTallyGroup(tally, rawKey) {
+function findTallyGroup(tally, rawKey, building) {
   const key = normalizeFlatKey(rawKey);
   if (!key) return null;
+  if (tally.buildingsInUse) {
+    // Maitri Heights 403 and Siddhivinayak Palace 403 are different flats: never guess between them.
+    if (building) {
+      const g = tally.byFlat.get(groupKey(building, key));
+      return g ? { flatNo: key, group: g, reason: 'building+flat' } : null;
+    }
+    const same = [...tally.byFlat.values()].filter((g) => g.flatNo === key);
+    return same.length === 1 ? { flatNo: key, group: same[0], reason: 'flat-key' } : null;
+  }
   if (tally.byFlat.has(key)) return { flatNo: key, group: tally.byFlat.get(key), reason: 'flat-key' };
   // wing missing on one side: match on the bare flat number when it is unambiguous
   const digits = key.replace(/D/g, '');
@@ -95,7 +104,7 @@ function matchTallyFlat(agreement, tally, overrideFlat) {
   if (overrideFlat && tally.byFlat.has(String(overrideFlat))) {
     return { flatNo: String(overrideFlat), group: tally.byFlat.get(String(overrideFlat)), reason: 'override', score: 1 };
   }
-  const byKey = findTallyGroup(tally, agreement.flatNoHint);
+  const byKey = findTallyGroup(tally, agreement.flatNoHint, agreement.building);
   if (byKey) {
     return { ...byKey, reason: agreement.flatSource === 'ocr' ? 'ocr-flat' : 'filename', score: 1 };
   }
@@ -105,6 +114,7 @@ function matchTallyFlat(agreement, tally, overrideFlat) {
 
   let best = null;
   for (const g of tally.byFlat.values()) {
+    if (tally.buildingsInUse && agreement.building && g.building && g.building !== agreement.building) continue;
     for (const nm of g.nameList) {
       const score = nameScore(name, nm);
       if (!best || score > best.score) best = { flatNo: g.flatNo, group: g, reason: 'name', score };
@@ -142,18 +152,48 @@ function buildRecord(agreement, tally, override = {}) {
   const group = match ? (match.group || null) : null;
   const needsReview = !!(match && /review/.test(match.reason));
 
-  const agreementValue = override.agreementValue != null
+  let agreementValue = override.agreementValue != null
     ? override.agreementValue
     : agreement.agreementValue;
 
-  const rate = agreementValue != null ? gstRate(agreementValue) : null;
-  const gstOnAgreement = agreementValue != null ? round2(agreementValue * rate) : null;
+  // What the GST is charged on. Normally the agreement value; for a पर्यायी जागेचा करार
+  // (alternate accommodation) the consideration is 0 and the GST is on the market value.
+  const unitFlags = [];
+  let needsManual = false;
+  let gstBase = agreementValue;
+  if (agreement.docType === 'alternate' && override.agreementValue == null) {
+    agreementValue = 0;
+    const mv = agreement.marketValue;
+    if (mv != null && mv > 1) {
+      gstBase = mv;
+      unitFlags.push('alternate accommodation – GST on market value');
+      if (agreement.marketValueSinglePass) unitFlags.push('(review) market value read in one OCR pass only - verify against the document');
+    } else {
+      gstBase = null; // market value 1 (or unreadable): there is nothing sensible to tax
+      needsManual = true;
+      unitFlags.push(`check manually: alternate accommodation, market value ${mv == null ? 'not readable' : mv} - no GST calculated`);
+    }
+  }
+  // Shops / commercial units: 5%, but a CA must confirm it.
+  const commercial = !!agreement.commercial || isShopKey(flatNo);
+  let rate = gstBase != null ? gstRate(gstBase) : null;
+  if (commercial && gstBase != null) {
+    rate = 0.05;
+    unitFlags.push('commercial – confirm rate');
+  }
+  const gstOnAgreement = gstBase != null ? round2(gstBase * rate) : null;
+  if (agreement.building == null && tally.buildingsInUse && !(group && group.building)) {
+    needsManual = true;
+    unitFlags.push('check manually: building not read from the agreement');
+  }
 
   // Resolve the agreement date for Case 2 detection
   // "AGMT DT" in the Tally narration is used only when neither override nor agreement gives a date.
   const agreementDateStr = override.agreementDate || agreement.agreementDateText
     || (group && group.agmtDate ? formatMDY(group.agmtDate) : '');
-  const agreementDateObj = agreementDateStr ? parseDate(agreementDateStr) : null;
+  // the OCR date is a real Date: do not round-trip it through text (m/d vs d/m)
+  const agreementDateObj = override.agreementDate ? parseDate(override.agreementDate)
+    : (agreement.agreementDate instanceof Date ? agreement.agreementDate : (agreementDateStr ? parseDate(agreementDateStr) : null));
 
   let payments = (group ? group.payments : []).map((p) => ({
     date: p.date,
@@ -167,6 +207,7 @@ function buildRecord(agreement, tally, override = {}) {
     renumberedFrom: p.renumberedFrom || '',
     chqReturn: !!p.chqReturn,
     manualAllocation: !!p.manualAllocation,
+    allocatedBy: p.allocatedBy || '',
     allocatedFrom: p.allocatedFrom || '',
     source: 'tally',
   }));
@@ -224,14 +265,27 @@ function buildRecord(agreement, tally, override = {}) {
     }
   }
 
+  // The GST receipt (e.g. Rs 44,900 on 44,90,000) is the buyer paying the GST itself: it is
+  // reported apart from the base advances, which are what the agreement value is paid with.
+  const gstReceived = round2(payments.filter((p) => p.gstReceipt).reduce((s, p) => s + p.amount, 0));
+  const baseReceived = round2(totalReceived - gstReceived);
+  const gstOutstanding = gstOnAgreement != null ? Math.max(0, round2(gstOnAgreement - gstReceived)) : null;
+  const osAmount = agreementValue != null ? round2(agreementValue - baseReceived) : null;
+
   const floorNum = override.floorNum != null ? override.floorNum : floorFromFlat(flatNo);
   // Marathi (Devanagari) purchaser names are shown transliterated; the original
   // goes to the Audit sheet. A Latin Tally name still wins over a Marathi OCR name.
-  const tallyName = group && group.nameList ? group.nameList[0] : '';
   const ocrName = agreement.primaryName || '';
+  // the Tally name that matches the agreement best (>= 0.85) is the one shown; else the first
+  const tallyNames = group && group.nameList ? group.nameList : [];
+  const tallyBest = tallyNames
+    .map((n) => ({ n, score: fuzzyNameSimilarity(ocrName, n) }))
+    .sort((a, b) => b.score - a.score)[0];
+  const tallyName = tallyBest && tallyBest.score >= 0.85 ? tallyBest.n : (tallyNames[0] || '');
+  const tallyMatches = !!(tallyBest && tallyBest.score >= 0.85);
   const ocrIsMarathi = HAS_DEVANAGARI.test(ocrName);
   const name = override.name
-    || (ocrIsMarathi ? (tallyName || transliterateName(ocrName)) : (ocrName || tallyName));
+    || (tallyMatches ? tallyName : (ocrIsMarathi ? (tallyName || transliterateName(ocrName)) : (ocrName || tallyName)));
 
   return {
     flatNo: String(flatNo),
@@ -240,11 +294,13 @@ function buildRecord(agreement, tally, override = {}) {
     flatType: override.flatType || '',
     carpetArea: override.carpetArea != null ? override.carpetArea
       : (agreement.carpetAreaSqm != null ? agreement.carpetAreaSqm : ''),
-    regNo: override.regNo || '',
+    regNo: override.regNo || agreement.regNo || '',
+    marketValue: agreement.marketValue != null ? agreement.marketValue : null,
     agreementDate: agreementDateStr,
     agreementDateObj,
     name,
     purchaserMarathi: ocrIsMarathi ? ocrName : '',
+    purchaserTransliterated: ocrIsMarathi ? transliterateName(ocrName) : '',
     agreementDateSource: agreement.dateSource || (agreementDateStr ? 'agreement' : ''),
     allottees: agreement.names && agreement.names.length ? agreement.names : (group && group.nameList ? group.nameList : []),
     agreementValue,
@@ -259,15 +315,24 @@ function buildRecord(agreement, tally, override = {}) {
     outstandingGst,
     gstCase,
     totalReceived,
+    baseReceived,
+    gstReceived,
+    gstOutstanding,
+    osAmount,
     totalGst,
     balance,
     matchReason: match ? match.reason : (override.flatNo ? 'override' : 'unmatched'),
     matchScore: match ? match.score : 0,
     valueSource: override.agreementValue != null ? 'override'
-      : (agreementValue == null ? 'manual needed' : (agreement.valueMethod === 'position' ? 'ocr (position)' : 'ocr')),
+      : (agreementValue == null || needsManual ? 'manual needed' : (agreement.valueMethod === 'position' ? 'ocr (position)' : 'ocr')),
     needsReview,
     ocrFailed: !!agreement.ocrFailed,
-    flags: [...(agreement.ocrFailed ? [`OCR FAILED (page ${agreement.ocrFailedPages.join(', ')}: under 50 characters read) — check the PDF manually`] : []), ...voucherFlags(payments), ...(needsReview ? [`Capital Ac ledger "${match.ledger.name}" matches by name (${Math.round(match.score * 100) / 100}) (review): its receipts are NOT added to this flat`] : [])],
+    building: agreement.building || (group && group.building) || '',
+    tallyKey: group && group.key ? group.key : null,
+    docType: agreement.docType || 'agreement',
+    commercial,
+    needsManual,
+    flags: [...unitFlags, ...(agreement.ocrFailed ? [`OCR FAILED (page ${agreement.ocrFailedPages.join(', ')}: under 50 characters read) — check the PDF manually`] : []), ...(ocrIsMarathi && tallyMatches ? [`Agreement name transliterated: ${transliterateName(ocrName)}; Tally name shown (match ${Math.round(tallyBest.score * 100) / 100})`] : []), ...voucherFlags(payments), ...(needsReview ? [`Capital Ac ledger "${match.ledger.name}" matches by name (${Math.round(match.score * 100) / 100}) (review): its receipts are NOT added to this flat`] : [])],
     tallyFlat: match && match.group && match.flatNo ? match.flatNo : null,
     valueCandidates: agreement.valueCandidates || [],
     hasAgreement: true,

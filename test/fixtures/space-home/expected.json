@@ -31,8 +31,7 @@
   "sheets": [
    "Summary",
    "Flats",
-   "Audit",
-   "Unallocated Receipts"
+   "Audit"
   ],
   "warning": false,
   "flats": {
