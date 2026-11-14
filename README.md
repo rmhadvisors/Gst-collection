@@ -31,7 +31,7 @@ and computes GST using the affordable-housing **45-lakh rule**.
 
 > **Marathi Index-II (सूची क्र.2) pages.** OCR runs with `mar+eng`; both
 > `mar.traineddata` and `eng.traineddata` must sit in the project root
-> (they are git-ignored — download `mar.traineddata` from
+> (they are committed to the repo so a deploy such as Render has them; source:
 > https://github.com/tesseract-ocr/tessdata_fast). Every page is parsed
 > separately: value = number after `मोबदला`, flat = `सदनिका क्र.` + wing from
 > `बी विंग`/`ए विंग`, purchaser = field 6/8, date = `दस्त नोंदणी केल्याचा दिनांक`,
